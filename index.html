@@ -7,35 +7,83 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+try{ document.documentElement.setAttribute('data-theme', localStorage.getItem('md_theme')==='dark' ? 'dark' : 'light'); }
+catch(e){ document.documentElement.setAttribute('data-theme','light'); }
+</script>
 <style>
   :root{
-    --pitch-bg:#0b3d2e;
-    --stripe:#0e4735;
-    --panel:#103a2c;
-    --panel-2:#0c2e22;
-    --line:rgba(244,247,242,.14);
-    --line-strong:rgba(244,247,242,.28);
-    --chalk:#f4f7f2;
-    --chalk-dim:#aec2b8;
-    --chalk-faint:#7f9689;
+    --pitch-bg:#ffffff;
+    --stripe:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#f3f5f4;
+    --line:rgba(16,32,24,.10);
+    --line-strong:rgba(16,32,24,.20);
+    --chalk:#14201a;
+    --chalk-dim:#4b5b53;
+    --chalk-faint:#76867e;
+    --amber:#f7b32b;
+    --amber-ink:#2b1d00;
+    --accent-text:#9a5b00;
+    --sel-bg:rgba(19,128,79,.10);
+    --sel-line:#13804f;
+    --sel-ink:#ffffff;
+    --teamA:#1f78c8;
+    --teamA-dim:rgba(31,120,200,.10);
+    --teamB:#dc4a30;
+    --teamB-dim:rgba(220,74,48,.10);
+    --team-head-ink:#ffffff;
+    --danger:#d3363d;
+    --good:#13804f;
+    --star:#b8860b;
+    --pos-gk:#a86f00;
+    --pos-def:#7448cc;
+    --pos-mid:#0b8a7f;
+    --pos-fwd:#cc5f16;
+    --shadow:0 1px 2px rgba(16,32,24,.06), 0 6px 18px rgba(16,32,24,.04);
+    --scrim:rgba(20,32,26,.45);
+    --radius:14px;
+    --radius-sm:9px;
+    font-size:16px;
+    color-scheme:light;
+  }
+  :root[data-theme="dark"]{
+    --pitch-bg:#0b1812;
+    --stripe:#0b1812;
+    --panel:#12251c;
+    --panel-2:#0e1e17;
+    --line:rgba(244,247,242,.10);
+    --line-strong:rgba(244,247,242,.22);
+    --chalk:#f1f5f2;
+    --chalk-dim:#a9bdb2;
+    --chalk-faint:#7b9185;
     --amber:#ffc53d;
     --amber-ink:#33230a;
+    --accent-text:#ffc53d;
+    --sel-bg:rgba(95,207,138,.14);
+    --sel-line:#5fcf8a;
+    --sel-ink:#08160f;
     --teamA:#5db3ec;
     --teamA-dim:rgba(93,179,236,.14);
     --teamB:#ff7a63;
     --teamB-dim:rgba(255,122,99,.14);
+    --team-head-ink:#08160f;
     --danger:#f0555b;
     --good:#5fcf8a;
-    --radius:14px;
-    --radius-sm:9px;
-    font-size:16px;
+    --star:#ffd23f;
+    --pos-gk:#ffc53d;
+    --pos-def:#b18cf0;
+    --pos-mid:#4fd1c5;
+    --pos-fwd:#ff9f5a;
+    --shadow:none;
+    --scrim:rgba(2,10,7,.62);
+    color-scheme:dark;
   }
 
   *{box-sizing:border-box;}
   body{
     margin:0;
-    background:
-      repeating-linear-gradient(0deg, var(--stripe) 0 48px, var(--pitch-bg) 48px 96px);
+    background:var(--pitch-bg);
     color:var(--chalk);
     font-family:'Work Sans', system-ui, -apple-system, sans-serif;
     min-height:100vh;
@@ -79,8 +127,8 @@
     align-items:baseline;
     gap:10px;
   }
-  .brand .ball{font-size:1.5rem;}
-  .brand h1{font-size:2rem; line-height:1;}
+  .brand .ball{font-size:1.3rem;}
+  .brand h1{font-size:1.8rem; line-height:1;}
   .brand small{color:var(--chalk-dim); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase;}
 
   .role-pill{
@@ -119,7 +167,7 @@
     font-weight:600;
     color:var(--chalk-faint);
     background:var(--panel-2);
-    border:1px solid var(--line);
+    border:1px solid transparent;
   }
   .progress-strip .step.active{
     color:var(--amber-ink);
@@ -127,9 +175,9 @@
     border-color:var(--amber);
   }
   .progress-strip .step.done{
-    color:var(--chalk);
-    background:var(--panel);
-    border-color:var(--good);
+    color:var(--good);
+    background:var(--sel-bg);
+    border-color:transparent;
   }
 
   /* ---------- Panels / cards ---------- */
@@ -137,11 +185,12 @@
     background:var(--panel);
     border:1px solid var(--line);
     border-radius:var(--radius);
-    padding:20px;
+    padding:22px;
     margin-bottom:16px;
+    box-shadow:var(--shadow);
   }
   .panel-title{
-    font-size:1.5rem;
+    font-size:1.4rem;
     margin-bottom:4px;
   }
   .panel-sub{
@@ -182,7 +231,7 @@
     transition:transform .08s ease, background .15s ease, border-color .15s ease;
     white-space:nowrap;
   }
-  .btn:hover{border-color:var(--line-strong); transform:translateY(-1px);}
+  .btn:hover{border-color:var(--chalk-faint);}
   .btn:active{transform:translateY(0);}
   .btn:disabled{opacity:.4; cursor:not-allowed; transform:none;}
   .btn-primary{background:var(--amber); border-color:var(--amber); color:var(--amber-ink);}
@@ -218,8 +267,8 @@
   }
   .format-card .num{font-family:'Teko',sans-serif; font-size:2.4rem; line-height:1; color:var(--chalk);}
   .format-card .lbl{font-size:.72rem; color:var(--chalk-dim); text-transform:uppercase; letter-spacing:.06em;}
-  .format-card.active{border-color:var(--amber); background:rgba(255,197,61,.1);}
-  .format-card.active .num{color:var(--amber);}
+  .format-card.active{border-color:var(--amber); background:var(--amber);}
+  .format-card.active .num, .format-card.active .lbl{color:var(--amber-ink);}
 
   /* ---------- Player list ---------- */
   .player-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
@@ -258,7 +307,7 @@
     background:var(--panel); border:1px solid var(--line);
     border-radius:999px; padding:1px 8px;
   }
-  .attr-chip.attr-plus{border-color:var(--amber); color:var(--amber); font-weight:700;}
+  .attr-chip.attr-plus{border-color:var(--amber); color:var(--accent-text); font-weight:700;}
   .stats-line{font-size:.68rem; color:var(--chalk-faint); padding:0 10px 8px 40px;}
   .edit-panel{
     padding:10px 12px 12px; border-top:1px dashed var(--line-strong);
@@ -273,21 +322,22 @@
     border-radius:999px; padding:6px 12px;
     font-size:.8rem; font-weight:600; cursor:pointer; font-family:inherit;
   }
-  .chip-toggle.active{border-color:var(--amber); color:var(--amber); background:rgba(255,197,61,.1);}
-  .chip-toggle.plus{background:rgba(255,197,61,.22); font-weight:800;}
+  .chip-toggle.active{border-color:var(--amber); color:var(--amber-ink); background:var(--amber);}
+  .chip-toggle.plus{font-weight:800; box-shadow:inset 0 0 0 2px rgba(0,0,0,.2);}
   .add-unknown-chip{margin-top:2px;}
 
   .select-row{cursor:pointer;}
   .select-row .player-row{transition:background .1s ease;}
-  .select-row.selected{border-color:var(--amber);}
-  .select-row.selected .player-row{background:rgba(255,197,61,.08);}
+  .select-row.selected{border-color:var(--sel-line); box-shadow:inset 4px 0 0 var(--sel-line);}
+  .select-row.selected .player-row{background:var(--sel-bg);}
+  .select-row.selected .player-name{font-weight:700;}
   .check-box{
     width:18px; height:18px; flex-shrink:0;
     border:1.5px solid var(--line-strong); border-radius:5px;
     display:inline-flex; align-items:center; justify-content:center;
-    font-size:.7rem; color:var(--amber-ink); font-weight:700;
+    font-size:.7rem; color:var(--sel-ink); font-weight:700;
   }
-  .select-row.selected .check-box{border-color:var(--amber); background:var(--amber);}
+  .select-row.selected .check-box{border-color:var(--sel-line); background:var(--sel-line);}
 
   .empty-note{
     color:var(--chalk-faint);
@@ -309,7 +359,7 @@
     cursor:pointer;
     text-align:left;
   }
-  .mode-card:hover{border-color:var(--amber);}
+  .mode-card:hover{border-color:var(--amber); box-shadow:0 0 0 3px var(--amber) inset;}
   .mode-card .emoji{font-size:1.8rem;}
   .mode-card h3{font-size:1.5rem; margin:8px 0 4px;}
   .mode-card p{color:var(--chalk-dim); font-size:.86rem; margin:0; line-height:1.5;}
@@ -327,11 +377,11 @@
     padding:12px 14px;
     display:flex; align-items:center; justify-content:space-between;
     flex-wrap:wrap; gap:4px 10px;
-    color:#08160f;
+    color:var(--team-head-ink);
   }
   .team-head.a{background:var(--teamA);}
   .team-head.b{background:var(--teamB);}
-  .team-head h3{font-size:1.3rem; color:#08160f;}
+  .team-head h3{font-size:1.3rem; color:var(--team-head-ink);}
   .team-head .budget{font-family:'Space Mono',monospace; font-weight:700; font-size:1rem;}
   .team-head .team-comp{font-size:.7rem; font-weight:700; letter-spacing:.02em; opacity:.8;}
 
@@ -344,15 +394,15 @@
     flex-shrink:0;
   }
   .chem-badge{
-    border-color:var(--amber) !important; color:var(--amber) !important;
-    background:rgba(255,197,61,.12); font-size:.68rem; padding:1px 4px;
+    border-color:var(--amber) !important; color:var(--accent-text) !important;
+    background:rgba(247,179,43,.14); font-size:.68rem; padding:1px 4px;
     cursor:help;
   }
   .star-badge{
-    border-color:#ffd23f !important; color:#ffd23f !important;
-    background:rgba(255,210,63,.16); font-size:.72rem; padding:1px 4px;
+    border-color:var(--star) !important; color:var(--star) !important;
+    background:rgba(247,179,43,.14); font-size:.72rem; padding:1px 4px;
   }
-  .star-toggle.active{border-color:#ffd23f; color:#ffd23f; background:rgba(255,210,63,.14);}
+  .star-toggle.active{border-color:var(--star); color:var(--amber-ink); background:var(--amber);}
   .squad-pill select{
     background:var(--panel-2); color:var(--chalk); border:1px solid var(--line-strong);
     border-radius:999px; padding:6px 12px; font-size:.85rem; font-weight:600;
@@ -405,7 +455,7 @@
     background:var(--panel-2); border:1.5px solid var(--line-strong);
     cursor:pointer; font-weight:600; font-size:.88rem; color:var(--chalk-dim);
   }
-  .toggle-btn.active{border-color:var(--amber); color:var(--amber); background:rgba(255,197,61,.08);}
+  .toggle-btn.active{border-color:var(--amber); color:var(--amber-ink); background:var(--amber);}
 
   /* ---------- Auction stage ---------- */
   .auction-scoreboard{
@@ -442,7 +492,7 @@
     min-width:150px;
     display:flex; flex-direction:column; justify-content:center; gap:4px;
   }
-  .block-card .tag{font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);}
+  .block-card .tag{font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent-text);}
   .block-card .name{font-size:1.7rem; font-family:'Teko',sans-serif; line-height:1.05;}
   .block-card .price{font-family:'Space Mono',monospace; font-size:1.9rem; font-weight:700; color:var(--chalk);}
   .block-card .leader{font-size:.78rem; color:var(--chalk-dim);}
@@ -469,7 +519,7 @@
     background:var(--panel-2);
     color:var(--chalk-dim);
   }
-  .banner.amber{border-color:var(--amber); color:var(--amber);}
+  .banner.amber{border-color:var(--amber); color:var(--accent-text); background:rgba(247,179,43,.10);}
   .banner.good{border-color:var(--good); color:var(--good);}
 
   .history-item{
@@ -482,7 +532,7 @@
   .footer-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px; flex-wrap:wrap;}
 
   .modal-backdrop{
-    position:fixed; inset:0; background:rgba(4,16,11,.6);
+    position:fixed; inset:0; background:var(--scrim);
     display:flex; align-items:flex-start; justify-content:center;
     padding:40px 16px; z-index:50; overflow-y:auto;
   }
@@ -504,11 +554,26 @@
   .login-foot{margin-top:16px; text-align:center;}
   .select-row.locked{cursor:default;}
 
+  /* Detail that only the host needs — hidden from everyone else so the player view stays clean */
+  body:not(.is-host) .select-row .rank-badge,
+  body:not(.is-host) .select-row .ability-bar,
+  body:not(.is-host) .select-row .chem-badge,
+  body:not(.is-host) .select-row .star-badge,
+  body:not(.is-host) .select-row .attr-row,
+  body:not(.is-host) .select-row .stats-line,
+  body:not(.is-host) .team-body .chem-badge,
+  body:not(.is-host) .team-body .star-badge,
+  body:not(.is-host) .team-comp,
+  body:not(.is-host) .balance-note,
+  body:not(.is-host) .host-detail{display:none !important;}
+  .host-detail{font-size:.8rem; color:var(--chalk-dim); background:var(--panel-2); border-radius:var(--radius-sm); padding:10px 12px; margin:0 0 12px; line-height:1.6;}
+  .theme-btn{font-size:.8rem;}
+
   /* hub card (friends' home when no draft is running) */
-  .hub-hero{background:linear-gradient(135deg, #14664a, #0f4d39); border:1px solid var(--line-strong); border-radius:var(--radius); padding:20px; margin-bottom:14px;}
-  .hub-pill{display:inline-block; font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; padding:3px 10px; border-radius:999px; background:rgba(255,255,255,.12); color:var(--chalk);}
+  .hub-hero{background:linear-gradient(135deg, #14664a, #0f4d39); color:#fff; border-radius:var(--radius); padding:20px; margin-bottom:14px;}
+  .hub-pill{display:inline-block; font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; padding:3px 10px; border-radius:999px; background:rgba(255,255,255,.18); color:#fff;}
   .hub-hero h2{margin:10px 0 6px; font-size:1.5rem; line-height:1.15;}
-  .hub-hero p{margin:0; color:var(--chalk-dim); font-size:.9rem;}
+  .hub-hero p{margin:0; color:rgba(255,255,255,.82); font-size:.9rem;}
   .last-match{background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--radius); padding:16px; margin-bottom:14px;}
   .last-match .lm-top{display:flex; justify-content:space-between; align-items:center; font-size:.75rem; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px;}
   .scoreline{display:flex; align-items:center; justify-content:center; gap:14px;}
@@ -771,10 +836,10 @@ function statsOf(id){
 
 /* ---- positions & attributes ---- */
 const POSITIONS = {
-  GK:  {label:'GK',  full:'Goalkeeper', color:'#ffc53d'},
-  DEF: {label:'DEF', full:'Defender',   color:'#b18cf0'},
-  MID: {label:'MID', full:'Midfielder', color:'#4fd1c5'},
-  FWD: {label:'FWD', full:'Forward',    color:'#ff9f5a'}
+  GK:  {label:'GK',  full:'Goalkeeper', color:'var(--pos-gk)'},
+  DEF: {label:'DEF', full:'Defender',   color:'var(--pos-def)'},
+  MID: {label:'MID', full:'Midfielder', color:'var(--pos-mid)'},
+  FWD: {label:'FWD', full:'Forward',    color:'var(--pos-fwd)'}
 };
 const POSITION_ORDER = ['GK','DEF','MID','FWD'];
 
@@ -2251,10 +2316,21 @@ function phaseStepKey(phase){
 // Rebuilding #app wholesale (below) would otherwise reset page scroll and
 // any open modal's internal scroll back to the top on every single click —
 // so capture both here and restore them right after.
+function currentTheme(){ return document.documentElement.getAttribute('data-theme')==='dark' ? 'dark' : 'light'; }
+function toggleTheme(){
+  const t = currentTheme()==='dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  try{ localStorage.setItem('md_theme', t); }catch(e){}
+  render();
+}
+function themeBtnHtml(){
+  return `<button class="btn btn-ghost btn-sm theme-btn" onclick="toggleTheme()" title="Switch between light and dark">${currentTheme()==='dark' ? '☀️ Light' : '🌙 Dark'}</button>`;
+}
 function renderLoading(){
   return `
   <div class="login-wrap">
     <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
+    <div class="login-foot" style="margin:-10px 0 14px;">${themeBtnHtml()}</div>
     <div class="login-card"><p class="login-sub" style="margin:0;">${slowConnect ? 'Still connecting… check your internet connection, this can take a moment.' : 'Connecting…'}</p></div>
   </div>`;
 }
@@ -2282,11 +2358,13 @@ function renderLogin(){
       ${loginError ? `<div class="login-err">${esc(loginError)}</div>` : ''}
       ${hostBox}
     </div>
+    <div class="login-foot">${themeBtnHtml()}</div>
   </div>`;
 }
 
 function render(){
   const app = document.getElementById('app');
+  document.body.classList.toggle('is-host', isHost());
   const pageScrollY = window.scrollY;
   const openModal = document.querySelector('.modal-backdrop');
   const modalScrollTop = openModal ? openModal.scrollTop : null;
@@ -2347,6 +2425,7 @@ function renderTopbar(){
       <button class="btn btn-ghost btn-sm" onclick="toggleAwards()">🏆 Awards</button>
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
+      ${themeBtnHtml()}
       <button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>
       ${isHost() ? `
       <span class="chip" style="cursor:default;">Host</span>
@@ -2787,7 +2866,7 @@ function renderSetup(){
 
   return `
   ${isHost() ? '' : renderHubHtml()}
-  <div class="panel">
+  ${isHost() ? `<div class="panel">
     <div class="panel-title">Match format</div>
     <div class="panel-sub">How many a side today?</div>
     <div class="format-grid">
@@ -2798,7 +2877,7 @@ function renderSetup(){
         </div>`).join('')}
     </div>
     ${S.oddSide ? `<div class="panel-sub" style="margin-top:8px;">Uneven teams confirmed — Team ${S.oddSide.toUpperCase()} will carry the extra player (${S.format+1}v${S.format}).${isHost() ? ` <button class="btn btn-ghost btn-sm" onclick="saveState({oddSide:null, extraConfirmedEven:false})">Undo</button>` : ''}</div>` : ''}
-  </div>
+  </div>` : ''}
 
   <div class="panel">
     <div class="row" style="justify-content:space-between; margin-bottom:4px;">
@@ -2807,9 +2886,19 @@ function renderSetup(){
     </div>
     <div class="panel-sub">${isHost()
       ? `Anyone can tap themselves in from their own phone — no need to wait for the host to open the app. New to the group? Add them from the player database first, then they'll show up here.${unavailableCount ? ` (${unavailableCount} marked unavailable and hidden — manage that in the player database.)` : ''}`
-      : `Tap your own name to mark yourself in or out. Only the host can change anyone else.`}</div>
+      : `Tap your own name to mark yourself in or out.`}</div>
+    ${isHost() ? (()=>{
+      const need = S.format*2 + (S.oddSide ? 1 : 0);
+      const starsSel = sel.filter(isStarPlayer).length;
+      const rankIdx = sel.map(id=>SQUAD.players.findIndex(p=>p.id===id)).filter(i=>i>=0);
+      const avgRank = rankIdx.length ? (rankIdx.reduce((a,b)=>a+b,0)/rankIdx.length+1).toFixed(1) : '–';
+      return `<div class="host-detail">
+        <b>${sel.length}</b> selected of ${need} needed · ${compositionLine(sel)}${(sel.length && positionCounts(sel).GK===0) ? ' · <span style="color:var(--danger)">no goalkeepers selected</span>':''}<br>
+        ⭐ stars in: ${starsSel} · average rank of those in: #${avgRank} · bench if everyone plays: ${Math.max(0, sel.length-need)}
+      </div>`;
+    })() : ''}
     ${total || todaysGuests.length ? `
-      <div class="panel-sub" style="margin-bottom:8px;">${sel.length} selected · ${compositionLine(sel)}${(sel.length && positionCounts(sel).GK===0) ? ' · <span style="color:var(--danger)">no goalkeepers selected</span>':''}</div>
+      ${isHost() ? '' : `<div class="panel-sub" style="margin-bottom:8px;">${sel.length} selected</div>`}
       <input type="text" id="setupSearchInput" placeholder="Search players…" autocomplete="off" style="margin-bottom:10px;" value="${esc(setupSearch)}" oninput="setSetupSearch(this.value)">
       ${(rankedRows||unrankedRows||guestRows) ? `<ul class="player-list">${rankedRows}${unrankedRows}${guestRows}</ul>` : `<div class="empty-note">Nobody matches “${esc(setupSearch)}”.</div>`}
     ` : `<div class="empty-note">No players in the database yet — open the player database to add some.</div>`}
