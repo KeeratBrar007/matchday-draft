@@ -992,6 +992,33 @@ function localCommit(){
   render();
 }
 
+// Belt and braces on top of the live listeners: re-reads the shared state
+// straight from the server and only re-renders if something really changed.
+let lastResync = 0;
+function resyncNow(force){
+  if(!db || !currentSquadId || !dbReady) return;
+  if(typeof document!=='undefined' && document.visibilityState==='hidden') return;
+  const now = Date.now();
+  if(!force && now - lastResync < 2500) return;
+  lastResync = now;
+  const sid = currentSquadId;
+  db.doc('squads/'+sid+'/state/match').get().then(snap=>{
+    if(sid!==currentSquadId || !snap.exists) return;
+    const fresh = Object.assign(defaultState(), snap.data());
+    if(JSON.stringify(fresh) !== JSON.stringify(S)){ S = fresh; render(); }
+  }).catch(()=>{});
+}
+document.addEventListener('visibilitychange', ()=>resyncNow(true));
+window.addEventListener('online', ()=>resyncNow(true));
+window.addEventListener('focus', ()=>resyncNow(false));
+window.addEventListener('pageshow', ()=>resyncNow(true));
+// While a draft is in progress people are waiting on each other's phones, so
+// check the server every few seconds (screen on only). Cheap: a handful of
+// reads per minute per phone, and only during these phases.
+setInterval(()=>{
+  if(S && (S.phase==='captains' || S.phase==='budget' || S.phase==='auction')) resyncNow(false);
+}, 5000);
+
 function subscribeToSquad(id){
   rosterLoaded = false;
   if(unsubRoster) unsubRoster();
@@ -1171,6 +1198,10 @@ function initFirebaseDb(){
     if(!FIREBASE_CONFIG || !window.firebase) return null;
     firebase.initializeApp(FIREBASE_CONFIG);
     const fs = firebase.firestore();
+    // The default streaming connection can silently stall on phones (mobile
+    // networks, battery savers, in-app browsers): updates only show after a
+    // reload. Long-polling is a touch slower but keeps delivering them.
+    try{ fs.settings({ experimentalForceLongPolling: true }); }catch(e){}
     return {
       doc: p=> fsWrapDoc(fs.doc(p)),
       collection: p=>{
