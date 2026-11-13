@@ -503,6 +503,51 @@
   .login-err{color:var(--danger); font-size:.85rem; margin-top:10px;}
   .login-foot{margin-top:16px; text-align:center;}
   .select-row.locked{cursor:default;}
+
+  /* hub card (friends' home when no draft is running) */
+  .hub-hero{background:linear-gradient(135deg, #14664a, #0f4d39); border:1px solid var(--line-strong); border-radius:var(--radius); padding:20px; margin-bottom:14px;}
+  .hub-pill{display:inline-block; font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; padding:3px 10px; border-radius:999px; background:rgba(255,255,255,.12); color:var(--chalk);}
+  .hub-hero h2{margin:10px 0 6px; font-size:1.5rem; line-height:1.15;}
+  .hub-hero p{margin:0; color:var(--chalk-dim); font-size:.9rem;}
+  .last-match{background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--radius); padding:16px; margin-bottom:14px;}
+  .last-match .lm-top{display:flex; justify-content:space-between; align-items:center; font-size:.75rem; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px;}
+  .scoreline{display:flex; align-items:center; justify-content:center; gap:14px;}
+  .scoreline .tn{font-size:.8rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;}
+  .scoreline .sc{font-family:'Space Mono',monospace; font-size:1.7rem; font-weight:700;}
+  .scoreline .tn.a{color:var(--teamA);} .scoreline .tn.b{color:var(--teamB);}
+
+  /* leaderboard */
+  .podium{display:grid; grid-template-columns:1fr 1.15fr 1fr; gap:8px; align-items:end; margin:12px 0 14px;}
+  .pod{background:var(--panel-2); border:1px solid var(--line-strong); border-radius:var(--radius-sm); padding:10px 6px; text-align:center;}
+  .pod.first{border-color:var(--amber); padding-top:16px; padding-bottom:16px;}
+  .pod .medal{font-size:1.2rem;}
+  .pod .pn{font-weight:700; font-size:.9rem; margin:4px 0 2px; overflow-wrap:anywhere;}
+  .pod .ps{font-size:.72rem; color:var(--chalk-dim);}
+  .pod .pw{font-family:'Space Mono',monospace; font-weight:700; color:var(--good); font-size:1rem;}
+  .stand-wrap{overflow-x:auto;}
+  .stand{min-width:290px; font-size:.8rem;}
+  .stand-row{display:grid; grid-template-columns:18px minmax(54px,1fr) repeat(6, 21px) 60px; gap:3px; align-items:center; padding:7px 2px; border-bottom:1px solid var(--line);}
+  .stand-row.head{font-size:.62rem; text-transform:uppercase; letter-spacing:.06em; color:var(--chalk-faint);}
+  .stand-row .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .stand-row .num{text-align:center; font-family:'Space Mono',monospace; color:var(--chalk-dim);}
+  .stand-row .wr{display:flex; align-items:center; gap:4px; font-family:'Space Mono',monospace; font-size:.7rem; color:var(--chalk-dim);}
+  .wr-bar{flex:1; height:5px; border-radius:3px; background:var(--line); overflow:hidden;}
+  .wr-bar i{display:block; height:100%; background:var(--good);}
+
+  /* past matches */
+  .hcard-score{display:flex; align-items:center; justify-content:center; gap:12px; margin:8px 0 6px;}
+  .hcard-score .tn{font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;}
+  .hcard-score .tn.a{color:var(--teamA);} .hcard-score .tn.b{color:var(--teamB);}
+  .hcard-score .sc{font-family:'Space Mono',monospace; font-size:1.35rem; font-weight:700;}
+  .hres{display:flex; justify-content:center; margin-bottom:4px;}
+  details.hdetails{margin-bottom:12px;}
+  details.hdetails summary{cursor:pointer; color:var(--chalk-dim); font-size:.8rem; text-align:center; padding:6px 0; list-style:none;}
+  details.hdetails summary::-webkit-details-marker{display:none;}
+  details.hdetails[open] summary{color:var(--chalk);}
+
+  /* player database filters */
+  .db-filter{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:10px 0 4px;}
+  .db-filter input{flex:1; min-width:160px;}
 </style>
 </head>
 <body>
@@ -657,6 +702,10 @@ let showLogMatch = false;
 let manualPickStage = 'a';   // which captain slot manual-picking is filling next
 let editingPlayerId = null;  // database row whose position/attribute editor is open
 let chemSelection = [];      // ids currently ticked in the chemistry-link builder
+let histOpen = new Set();   // past-match cards currently expanded
+let setupSearch = '';        // search box above today's player list
+let dbSearch = '';           // host-only player database search
+let dbPosFilter = 'ALL';     // host-only position filter
 let statsMonth = null;       // 'YYYY-MM' the leaderboard/awards are showing — defaults to the current month
 let addForm = {positions:['MID'], attributes:{}, unknown:false, star:false}; // draft state for the add-player form
 let guestForm = {name:'', positions:['MID']}; // draft state for the "add a guest for today" quick-add
@@ -2243,7 +2292,7 @@ function render(){
   const modalScrollTop = openModal ? openModal.scrollTop : null;
   // keep the cursor in a login box if a live update re-renders mid-typing
   const ae = document.activeElement;
-  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput')) ? ae.id : null;
+  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput')) ? ae.id : null;
   const keepPos = keepId ? ae.selectionStart : null;
 
   if(!(dbReady && rosterLoaded)){ app.innerHTML = renderLoading(); return; }
@@ -2258,6 +2307,10 @@ function render(){
 
   app.innerHTML = renderTopbar() + renderProgress() + renderBanner() + renderBody()
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal() + renderAwardsModal();
+  if(keepId){
+    const el = document.getElementById(keepId);
+    if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
+  }
 
   window.scrollTo(0, pageScrollY);
   if(modalScrollTop != null){
@@ -2382,10 +2435,10 @@ function playerRowHtml(p, i, ranked, total){
         <span class="row-controls">
           <button class="icon-btn" title="${p.unavailable?'Mark available':'Mark unavailable'}" onclick="toggleUnavailable('${p.id}')">${p.unavailable?'✅':'🚫'}</button>
           <button class="icon-btn" title="Edit position / attributes" onclick="toggleEditPanel('${p.id}')">✎</button>
-          ${ranked ? `
+          ${ranked ? (dbFilterActive() ? '' : `
           <button class="icon-btn" title="Weaker" onclick="movePlayer('${p.id}',-1)" ${i===0?'disabled':''}>▲</button>
           <button class="icon-btn" title="Stronger" onclick="movePlayer('${p.id}',1)" ${i===(total-1)?'disabled':''}>▼</button>
-          ` : `<button class="btn btn-sm" onclick="rankPlayerNow('${p.id}')">Rank now</button>`}
+          `) : `<button class="btn btn-sm" onclick="rankPlayerNow('${p.id}')">Rank now</button>`}
           <button class="icon-btn" title="Remove from database" onclick="removePlayer('${p.id}')">✕</button>
         </span>` : ''}
       </div>
@@ -2575,11 +2628,25 @@ function streakBadge(id, month){
     : `<span class="mono" style="color:var(--danger);"> ❄️${s.streak}L</span>`;
 }
 
+function renderPodiumHtml(sorted, monthly){
+  const top = sorted.slice(0,3);
+  if(!top.length) return '';
+  const medals = ['🥇','🥈','🥉'];
+  const card = (i)=>{
+    const id = top[i]; if(!id) return '<div></div>';
+    const s = monthly[id];
+    const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
+    return `<div class="pod ${i===0?'first':''}"><div class="medal">${medals[i]}</div><div class="pn">${esc(playerName(id))}</div><div class="pw">${wr}%</div><div class="ps">${s.wins}W · ${s.played}P</div></div>`;
+  };
+  // classic podium order: 2nd, 1st, 3rd
+  return `<div class="podium">${card(1)}${card(0)}${card(2)}</div>`;
+}
 function renderStatsTable(){
   const month = statsMonth || currentYearMonth();
   const monthly = computeMonthlyStats(month);
   const ids = Object.keys(monthly);
-  const sorted = ids.slice().sort((x,y)=> monthly[y].wins - monthly[x].wins);
+  const rate = id=> monthly[id].played ? monthly[id].wins/monthly[id].played : 0;
+  const sorted = ids.slice().sort((x,y)=> (monthly[y].wins - monthly[x].wins) || (rate(y) - rate(x)) || (monthly[y].goals - monthly[x].goals) || playerName(x).localeCompare(playerName(y)));
   const topScorer = ids.slice().sort((x,y)=> monthly[y].goals - monthly[x].goals)[0];
   const topScorerGoals = topScorer ? monthly[topScorer].goals : 0;
   const topAssister = ids.slice().sort((x,y)=> monthly[y].assists - monthly[x].assists)[0];
@@ -2601,14 +2668,20 @@ function renderStatsTable(){
   ${topScorerGoals>0 ? `<div class="panel-sub" style="margin:8px 0 2px;">🥇 Golden boot: <b style="color:var(--chalk);">${esc(playerName(topScorer))}</b> — ${topScorerGoals} goal${topScorerGoals===1?'':'s'}</div>` : ''}
   ${topAssisterCount>0 ? `<div class="panel-sub" style="margin:2px 0;">🎯 Playmaker: <b style="color:var(--chalk);">${esc(playerName(topAssister))}</b> — ${topAssisterCount} assist${topAssisterCount===1?'':'s'}</div>` : ''}
   ${topPotmCount>0 ? `<div class="panel-sub" style="margin:2px 0 8px;">🏅 Most POTMs: <b style="color:var(--chalk);">${esc(playerName(topPotm))}</b> — ${topPotmCount}</div>` : ''}
-  <div style="display:flex; flex-direction:column; gap:4px;">
-    ${sorted.map(id=>{
+  ${renderPodiumHtml(sorted, monthly)}
+  <div class="stand-wrap"><div class="stand">
+    <div class="stand-row head"><span>#</span><span>Player</span><span class="num">P</span><span class="num">W</span><span class="num">D</span><span class="num">L</span><span class="num">⚽</span><span class="num">🅰</span><span>Win rate</span></div>
+    ${sorted.map((id,i)=>{
       const s = monthly[id];
-      return `<div class="row" style="justify-content:space-between; font-size:.85rem; padding:4px 0; border-bottom:1px solid var(--line);">
-        <span>${esc(playerName(id))}${starBadge(id)}</span>
-        <span class="mono" style="color:var(--chalk-dim);">${s.played}P ${s.wins}W ${s.draws}D ${s.losses}L · ${s.goals}⚽ ${s.assists}🅰${potmCounts[id]?' · '+potmCounts[id]+'🏅':''}${streakBadge(id, month)}</span>
+      const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
+      return `<div class="stand-row">
+        <span class="num">${i+1}</span>
+        <span class="nm">${esc(playerName(id))}${starBadge(id)}${potmCounts[id]?' 🏅'+potmCounts[id]:''}${streakBadge(id, month)}</span>
+        <span class="num">${s.played}</span><span class="num" style="color:var(--good);">${s.wins}</span><span class="num">${s.draws}</span><span class="num" style="color:var(--danger);">${s.losses}</span><span class="num">${s.goals}</span><span class="num">${s.assists}</span>
+        <span class="wr"><span class="wr-bar"><i style="width:${wr}%"></i></span>${wr}%</span>
       </div>`;
     }).join('')}
+  </div></div>
   </div>`}`;
 }
 
@@ -2667,6 +2740,23 @@ function extraPlayerPromptHtml(sel){
   </div>`;
 }
 
+function setSetupSearch(v){ setupSearch = v; render(); }
+function renderHubHtml(){
+  const last = HISTORY[0];
+  const lastCard = last ? `
+  <div class="last-match">
+    <div class="lm-top"><span>Last matchday · ${esc(new Date(last.date).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))}</span><span>${esc(matchModeLabel(last.mode))}</span></div>
+    ${scorelineHtml(last, 'scoreline')}
+    <div class="hres" style="margin-top:8px;">${resultChipHtml(last)}</div>
+  </div>` : '';
+  return `
+  <div class="hub-hero">
+    <span class="hub-pill">Ready for kickoff</span>
+    <h2>No live draft running right now</h2>
+    <p>As soon as the host starts the team split, the live draft appears here automatically. Tick yourself in below if you're playing today.</p>
+  </div>
+  ${lastCard}`;
+}
 function renderSetup(){
   const known = SQUAD.players.filter(p=>!p.unavailable);
   const unranked = (SQUAD.unrankedPlayers||[]).filter(p=>!p.unavailable);
@@ -2688,12 +2778,15 @@ function renderSetup(){
     </li>`;
   }
 
-  const rankedRows = known.map((p,i)=>selRow(p, '#'+(i+1))).join('');
-  const unrankedRows = unranked.map(p=>selRow(p,'?')).join('');
-  const guestRows = todaysGuests.map(p=>selRow(p,'G')).join('');
+  const sq = normName(setupSearch);
+  const nameOk = p=> !sq || normName(p.name).includes(sq);
+  const rankedRows = known.map((p,i)=>({p,i})).filter(x=>nameOk(x.p)).map(x=>selRow(x.p, '#'+(x.i+1))).join('');
+  const unrankedRows = unranked.filter(nameOk).map(p=>selRow(p,'?')).join('');
+  const guestRows = todaysGuests.filter(nameOk).map(p=>selRow(p,'G')).join('');
   const total = known.length + unranked.length;
 
   return `
+  ${isHost() ? '' : renderHubHtml()}
   <div class="panel">
     <div class="panel-title">Match format</div>
     <div class="panel-sub">How many a side today?</div>
@@ -2717,7 +2810,8 @@ function renderSetup(){
       : `Tap your own name to mark yourself in or out. Only the host can change anyone else.`}</div>
     ${total || todaysGuests.length ? `
       <div class="panel-sub" style="margin-bottom:8px;">${sel.length} selected · ${compositionLine(sel)}${(sel.length && positionCounts(sel).GK===0) ? ' · <span style="color:var(--danger)">no goalkeepers selected</span>':''}</div>
-      <ul class="player-list">${rankedRows}${unrankedRows}${guestRows}</ul>
+      <input type="text" id="setupSearchInput" placeholder="Search players…" autocomplete="off" style="margin-bottom:10px;" value="${esc(setupSearch)}" oninput="setSetupSearch(this.value)">
+      ${(rankedRows||unrankedRows||guestRows) ? `<ul class="player-list">${rankedRows}${unrankedRows}${guestRows}</ul>` : `<div class="empty-note">Nobody matches “${esc(setupSearch)}”.</div>`}
     ` : `<div class="empty-note">No players in the database yet — open the player database to add some.</div>`}
     ${extraPlayerPromptHtml(sel)}
     ${isHost() ? `
@@ -2738,11 +2832,25 @@ function renderSetup(){
 
 /* ---- Player database modal ---- */
 function toggleDatabase(){ showDatabase = !showDatabase; render(); }
+function dbFilterActive(){ return !!dbSearch.trim() || dbPosFilter!=='ALL'; }
+function dbMatches(p){
+  const q = normName(dbSearch);
+  if(q && !normName(p.name).includes(q)) return false;
+  if(dbPosFilter!=='ALL' && !positionsOf(p.id).includes(dbPosFilter)) return false;
+  return true;
+}
+function setDbSearch(v){ dbSearch = v; render(); }
+function setDbPos(pos){ dbPosFilter = pos; render(); }
 function renderDatabaseModal(){
   if(!showDatabase) return '';
   if(!isHost()){ showDatabase = false; return ''; } // roster management stays host-only; see renderAwardsModal for the everyone-facing view
-  const rankedRows = SQUAD.players.map((p,i)=>playerRowHtml(p,i,true,SQUAD.players.length)).join('');
-  const unrankedRows = (SQUAD.unrankedPlayers||[]).map(p=>playerRowHtml(p,0,false)).join('');
+  const rankedAll = SQUAD.players.map((p,i)=>({p,i}));
+  const rankedShown = rankedAll.filter(x=>dbMatches(x.p));
+  const unrankedShown = (SQUAD.unrankedPlayers||[]).filter(dbMatches);
+  const rankedRows = rankedShown.map(x=>playerRowHtml(x.p,x.i,true,SQUAD.players.length)).join('');
+  const unrankedRows = unrankedShown.map(p=>playerRowHtml(p,0,false)).join('');
+  const totalPeople = SQUAD.players.length + (SQUAD.unrankedPlayers||[]).length;
+  const shownPeople = rankedShown.length + unrankedShown.length;
   return `
   <div class="modal-backdrop" onclick="if(event.target===this) toggleDatabase();">
     <div class="modal" style="max-width:640px;">
@@ -2753,10 +2861,18 @@ function renderDatabaseModal(){
       <div class="panel-sub">Everyone who's ever played — add new people, tweak positions/attributes, adjust ability rank, and manage chemistry links here. Match setup just picks who's around today.</div>
       <div class="panel-sub">Rank only moves on its own after a win, and only for that calendar month — it resets back to however you last set it manually (the ▲▼ arrows, or ranking someone for the first time) once a new month starts.</div>
       ${renderAddPlayerForm()}
+      ${totalPeople ? `
+      <div class="db-filter">
+        <input type="text" id="dbSearchInput" placeholder="Search by name…" autocomplete="off" value="${esc(dbSearch)}" oninput="setDbSearch(this.value)">
+        <span class="chip-toggle-row">
+          ${['ALL'].concat(POSITION_ORDER).map(pos=>`<button type="button" class="chip-toggle ${dbPosFilter===pos?'active':''}" onclick="setDbPos('${pos}')">${pos==='ALL'?'All':POSITIONS[pos].label}</button>`).join('')}
+        </span>
+      </div>
+      <div class="panel-sub" style="margin:2px 0 6px;">${dbFilterActive() ? `Showing ${shownPeople} of ${totalPeople} — clear the search and filter to re-order ranks with ▲▼.` : `${totalPeople} in the database`}</div>` : ''}
       ${SQUAD.players.length ? `
         <div class="panel-sub" style="margin:10px 0 8px;">${compositionLine(allPlayerIds())}</div>
-        <ul class="player-list">${rankedRows}</ul>` : `<div class="empty-note">No ranked players yet.</div>`}
-      ${(SQUAD.unrankedPlayers||[]).length ? `
+        ${rankedShown.length ? `<ul class="player-list">${rankedRows}</ul>` : `<div class="empty-note">No ranked players match.</div>`}` : `<div class="empty-note">No ranked players yet.</div>`}
+      ${unrankedShown.length ? `
         <div class="panel-title" style="font-size:1.1rem; margin:16px 0 8px;">New / unranked players</div>
         <ul class="player-list">${unrankedRows}</ul>` : ''}
       ${renderChemistryPanel()}
@@ -2828,7 +2944,7 @@ function renderAwardsModal(){
           <button class="icon-btn" onclick="toggleAwards()">✕</button>
         </span>
       </div>
-      <div class="panel-sub">Golden boot, form and the wins/losses table — everyone's, open to everyone. Resets each month.</div>
+      <div class="panel-sub">Podium, golden boot, form and the full wins/losses table — everyone's, open to everyone. Resets each month.</div>
       ${showAwardsCard ? renderAwardsCardHtml() : renderStatsTable()}
     </div>
   </div>`;
@@ -3447,24 +3563,40 @@ function histEditFormHtml(h){
     </div>`;
 }
 
+function histToggle(id, open){ if(open) histOpen.add(id); else histOpen.delete(id); }
+function matchModeLabel(m){ return m==='draft' ? 'Captains’ auction' : m==='random' ? 'Random split' : String(m||'Match'); }
+function resultChipHtml(h){
+  if(!h.winner) return `<span class="chip" style="cursor:default;">Result pending</span>`;
+  if(h.winner==='draw') return `<span class="chip" style="cursor:default;">Draw</span>`;
+  const col = h.winner==='a' ? 'var(--teamA)' : 'var(--teamB)';
+  return `<span class="chip" style="cursor:default; border-color:${col}; color:${col};">Team ${h.winner.toUpperCase()} victory</span>`;
+}
+function scorelineHtml(h, cls){
+  const has = h.scoreA!=null && h.scoreB!=null;
+  return `<div class="${cls}"><span class="tn a">Team A</span><span class="sc">${has ? esc(String(h.scoreA)) : '–'} : ${has ? esc(String(h.scoreB)) : '–'}</span><span class="tn b">Team B</span></div>`;
+}
 function renderHistoryModal(){
   if(!showHistory) return '';
   const items = HISTORY.length ? HISTORY.map(h=>`
     <div class="history-item">
       <div class="row" style="justify-content:space-between; align-items:flex-start;">
-        <div class="hdate">${new Date(h.date).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})} · ${h.format}v${h.format} · ${esc(h.mode)}${h.duration!=null?' · '+h.duration+' min':''}</div>
+        <div class="hdate">${new Date(h.date).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})} · ${h.format}v${h.format} · ${esc(matchModeLabel(h.mode))}${h.duration!=null?' · '+h.duration+' min':''}</div>
         ${isHost() ? `
         <span class="row-controls">
           <button class="icon-btn" title="Edit result" onclick="startEditHistory('${h.id}')">✎</button>
           <button class="icon-btn" title="Delete match" onclick="askDeleteHistory('${h.id}')">✕</button>
         </span>` : ''}
       </div>
-      <div class="hteams"><b style="color:var(--teamA)">Team A${h.teamA.captain? ' (C: '+esc(h.teamA.captain)+')':''}:</b> ${h.teamA.players.map(esc).join(', ')}</div>
-      <div class="hteams"><b style="color:var(--teamB)">Team B${h.teamB.captain? ' (C: '+esc(h.teamB.captain)+')':''}:</b> ${h.teamB.players.map(esc).join(', ')}</div>
-      ${h.subs && h.subs.length ? `<div class="hteams">Bench: ${h.subs.map(esc).join(', ')}</div>` : ''}
-      ${h.winner ? `<div class="hteams" style="color:var(--good);">🏆 ${h.winner==='draw'?'Draw':'Team '+h.winner.toUpperCase()+' won'}${(h.scoreA!=null && h.scoreB!=null)?' '+h.scoreA+'–'+h.scoreB:''}</div>` : ''}
-      ${h.scorers && h.scorers.length ? `<div class="hteams">Scorers: ${h.scorers.map(s=>esc(playerName(s.playerId))+' ('+s.goals+')').join(', ')}</div>` : ''}
-      ${h.assists && h.assists.length ? `<div class="hteams">Assists: ${h.assists.map(a=>esc(playerName(a.playerId))+' ('+a.assists+')').join(', ')}</div>` : ''}
+      ${scorelineHtml(h, 'hcard-score')}
+      <div class="hres">${resultChipHtml(h)}</div>
+      <details class="hdetails" ${histOpen.has(h.id)?'open':''} ontoggle="histToggle('${h.id}', this.open)">
+        <summary>Lineups ▾</summary>
+        <div class="hteams"><b style="color:var(--teamA)">Team A${h.teamA.captain? ' (C: '+esc(h.teamA.captain)+')':''}:</b> ${h.teamA.players.map(esc).join(', ')}</div>
+        <div class="hteams"><b style="color:var(--teamB)">Team B${h.teamB.captain? ' (C: '+esc(h.teamB.captain)+')':''}:</b> ${h.teamB.players.map(esc).join(', ')}</div>
+        ${h.subs && h.subs.length ? `<div class="hteams">Bench: ${h.subs.map(esc).join(', ')}</div>` : ''}
+        ${h.scorers && h.scorers.length ? `<div class="hteams">⚽ Scorers: ${h.scorers.map(s=>esc(playerName(s.playerId))+' ('+s.goals+')').join(', ')}</div>` : ''}
+        ${h.assists && h.assists.length ? `<div class="hteams">🅰 Assists: ${h.assists.map(a=>esc(playerName(a.playerId))+' ('+a.assists+')').join(', ')}</div>` : ''}
+      </details>
       ${pendingDeleteId===h.id ? `
       <div class="banner amber" style="margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
         <span>Delete this match? Its stats and any chemistry it created will be undone.</span>
@@ -3484,9 +3616,9 @@ function renderHistoryModal(){
         <div class="panel-title" style="margin:0;">Past matches</div>
         <button class="icon-btn" onclick="toggleHistory()">✕</button>
       </div>
-      <div class="footer-actions" style="justify-content:flex-start; margin-bottom:12px;">
+      ${isHost() ? `<div class="footer-actions" style="justify-content:flex-start; margin-bottom:12px;">
         <button class="btn btn-sm" onclick="toggleHistory(); toggleLogMatch();">📝 Log a match played outside the app</button>
-      </div>
+      </div>` : ''}
       ${items}
     </div>
   </div>`;
