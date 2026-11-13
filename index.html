@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="81f97ef813">
+<meta name="md-build" content="0c693f6bc9">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -603,6 +603,46 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .mate-pct{font-family:'Space Mono',monospace; font-size:.9rem; color:var(--chalk);}
   .pin-input{letter-spacing:.55em; text-align:center; font-family:'Space Mono',monospace; font-size:1.35rem;}
 
+  /* auction countdown */
+  .turn-timer{margin:10px 0 2px;}
+  .turn-timer .tt-label{font-size:.78rem; color:var(--chalk-dim); display:flex; justify-content:space-between;}
+  .tt-bar{height:6px; border-radius:99px; background:var(--panel-2); overflow:hidden; margin-top:4px;}
+  .tt-bar i{display:block; height:100%; background:var(--sel-line); transition:width .5s linear;}
+  .turn-timer.urgent .tt-bar i{background:var(--danger);}
+  .turn-timer.urgent b{color:var(--danger);}
+  .tb-timer{margin-left:auto; font-family:'Space Mono',monospace; font-weight:700; white-space:nowrap;}
+
+  /* stats scopes + records */
+  .scope-tabs{display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 12px;}
+  .scope-tabs .toggle-btn{flex:1 1 auto; min-width:64px; padding:8px 6px; font-size:.8rem;}
+  .rec-title{font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--chalk-faint); margin:14px 0 6px;}
+  .rec-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:0 0 14px;}
+  .rec-card{background:var(--panel-2); border-radius:var(--radius-sm); padding:10px 12px; min-width:0;}
+  .rec-card .rl{font-size:.64rem; letter-spacing:.08em; text-transform:uppercase; color:var(--chalk-faint);}
+  .rec-card .rv{font-family:'Space Mono',monospace; font-size:1.1rem; margin:2px 0;}
+  .rec-card .rn{font-size:.82rem; color:var(--chalk-dim); overflow-wrap:anywhere;}
+
+  /* rivalries + head-to-head */
+  .riv-card{border:1px solid var(--line-strong); border-radius:var(--radius); padding:12px 14px; margin:8px 0; background:var(--panel-2);}
+  .riv-score{display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:600;}
+  .riv-score .sc{font-family:'Space Mono',monospace; font-size:1.3rem; white-space:nowrap;}
+  .riv-card .panel-sub{margin:4px 0 8px;}
+  .h2h-row{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line);}
+  .h2h-row small{display:block; color:var(--chalk-dim); font-size:.76rem; margin-top:1px;}
+  .h2h-rec{font-family:'Space Mono',monospace; font-size:.9rem; white-space:nowrap;}
+  .nemesis{border:1px dashed var(--danger); border-radius:var(--radius-sm); padding:10px 12px; margin:8px 0; font-size:.88rem; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+
+  /* attendance */
+  .att-row{display:grid; grid-template-columns:minmax(60px,1fr) 62px 30px 96px; gap:6px; align-items:center; padding:9px 2px; border-bottom:1px solid var(--line); font-size:.84rem;}
+  .att-row.head{font-size:.62rem; text-transform:uppercase; letter-spacing:.06em; color:var(--chalk-faint);}
+  .att-row small{display:block; color:var(--chalk-faint); font-size:.7rem; margin-top:1px;}
+  .att-row .num{text-align:center; font-family:'Space Mono',monospace; color:var(--chalk-dim);}
+  .st-chip{display:inline-block; font-size:.7rem; padding:3px 8px; border-radius:999px; font-weight:600; white-space:nowrap;}
+  .st-chip.ok{background:var(--sel-bg); color:var(--good);}
+  .st-chip.mid{background:rgba(247,179,43,.16); color:var(--accent-text);}
+  .st-chip.bad{background:rgba(211,54,61,.12); color:var(--danger);}
+  .st-chip.new{background:var(--panel-2); color:var(--chalk-faint);}
+
   /* your-turn banner */
   .turn-banner{position:sticky; top:8px; z-index:40; display:flex; align-items:center; gap:10px; margin:0 0 14px; padding:12px 16px;
     border-radius:var(--radius); background:var(--amber); color:var(--amber-ink); font-size:.95rem; line-height:1.35;
@@ -690,6 +730,9 @@ function defaultState(){
     budget:100,
     basePrice:10,
     increment:5,
+    timerSecs:30,         // seconds each captain gets per decision in the auction (0 = no timer)
+    rsvpLog:[],           // who ticked in/out today, with times (feeds attendance tracking)
+    attSnap:null,         // snapshot taken when the squad is locked: who was expected / dropped out
     auction:null,
     lastHistoryId:null,   // history doc this match is writing to, for the result form
     // "extra player" prompt (shown once selection hits exactly format*2): null
@@ -839,6 +882,14 @@ let profileId = null;        // player whose profile card is open
 let installHelp = false, deferredInstall = null;
 let updateReady = false;     // the service worker found a newer version of the app
 let alertsOn = (function(){ try{ return localStorage.getItem('md_alerts')!=='off'; }catch(e){ return true; } })();
+let statsScope = 'month';     // leaderboard view: 'month' | 'season' | 'all' | 'rivals'
+let statsSeason = null;      // 'YYYY' shown in the season view (defaults to this year)
+let profileTab = 'stats';    // profile card tab: 'stats' | 'rivals'
+let RIVALS = [];             // rivalry docs for the active squad
+let unsubRiv = null;
+let rivalArm = null;         // rivalry awaiting a second tap to end
+let showAttendance = false;  // host-only attendance modal
+let timerKey = '', timerStart = 0, timerFiredAt = 0, timerWarnKey = '';
 let copyFeedback = false;    // briefly true right after "copy team sheet" succeeds
 
 /* ---- id helpers ---- */
@@ -1204,6 +1255,8 @@ function subscribeToSquad(id){
   if(unsubRoster) unsubRoster();
   if(unsubMatch) unsubMatch();
   if(unsubHistory) unsubHistory();
+  if(unsubRiv) unsubRiv();
+  RIVALS = [];
   unsubRoster = db.doc('squads/'+id+'/state/roster').onSnapshot(snap=>{
     SQUAD = snap.exists ? Object.assign(defaultSquad(), snap.data()) : defaultSquad();
     ensureRankBaselineFresh();
@@ -1217,6 +1270,10 @@ function subscribeToSquad(id){
   }, ()=>{ dbReady = true; render(); });
   unsubHistory = db.collection('squads/'+id+'/history').orderBy('date','desc').limit(200).onSnapshot(qsnap=>{
     HISTORY = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+    render();
+  }, ()=>{});
+  unsubRiv = db.collection('squads/'+id+'/rivalries').onSnapshot(qsnap=>{
+    RIVALS = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
     render();
   }, ()=>{});
 }
@@ -1812,12 +1869,39 @@ function bumpFormatForExtra(){ setFormat(S.format+1); }
 function toggleSelected(id){
   if(!isHost() && id !== getMyPlayerId()) return; // players can only tick themselves in or out
   const sel = S.selectedIds||[];
-  saveState({selectedIds: sel.includes(id) ? sel.filter(x=>x!==id) : sel.concat([id])});
+  const isIn = sel.includes(id);
+  const log = (S.rsvpLog||[]).concat([{id, a: isIn ? 'out' : 'in', t:new Date().toISOString(), by: id===getMyPlayerId() ? 'self' : 'host'}]).slice(-300);
+  saveState({selectedIds: isIn ? sel.filter(x=>x!==id) : sel.concat([id]), rsvpLog:log});
 }
 
+/* ---- attendance: who turns up, who drops out late ----
+   A "drop-out" is someone who ticked in and then out again (themselves or via the host).
+   It's "late" when that happened within LATE_HOURS of the host locking the squad. */
+const ATT_WINDOW = 10, LATE_HOURS = 4;
+function liveDrops(now){
+  const sel = new Set(S.selectedIds||[]);
+  const last = {}, everIn = new Set();
+  (S.rsvpLog||[]).forEach(e=>{ last[e.id] = e; if(e.a==='in') everIn.add(e.id); });
+  const out = [];
+  Object.keys(last).forEach(id=>{
+    const e = last[id];
+    if(e.a==='out' && everIn.has(id) && !sel.has(id) && !isGuest(id) && findPlayer(id)){
+      const hrs = ((now||Date.now()) - new Date(e.t).getTime()) / 36e5;
+      out.push({id, late: hrs <= LATE_HOURS, at:e.t});
+    }
+  });
+  return out;
+}
+function buildAttendanceSnap(){
+  return {
+    at:new Date().toISOString(),
+    expected:(S.selectedIds||[]).filter(id=>!isGuest(id)),
+    dropped:liveDrops().map(d=>({id:d.id, late:d.late}))
+  };
+}
 function goToMode(){
   const pool = computePlayingPool();
-  saveState(Object.assign({phase:'mode'}, pool));
+  saveState(Object.assign({phase:'mode', attSnap:buildAttendanceSnap()}, pool));
 }
 
 function backToSetup(){
@@ -1846,7 +1930,8 @@ function confirmRandom(){
     mode:'random',
     teamA:{players:r.teamA.map(playerName)}, teamAIds:r.teamA,
     teamB:{players:r.teamB.map(playerName)}, teamBIds:r.teamB,
-    subs:r.subs.map(playerName), subIds:r.subs
+    subs:r.subs.map(playerName), subIds:r.subs,
+    att:S.attSnap || null
   });
   saveState({phase:'complete', lastHistoryId:id});
 }
@@ -1878,7 +1963,7 @@ function goToBudget(){
   saveState({phase:'budget'});
 }
 
-function startAuction(budget, basePrice, increment){
+function startAuction(budget, basePrice, increment, timerSecs){
   const order = S.playingIds
     .filter(id=> id!==S.captains.a && id!==S.captains.b)
     .sort((x,y)=> rankOf(y)-rankOf(x));
@@ -1894,7 +1979,7 @@ function startAuction(budget, basePrice, increment){
     log:[], done:false, savedToHistory:false
   };
   nextPlayerSetup(auction, basePrice); // seed the correct opening turn for player #1
-  saveState({phase:'auction', budget, basePrice, increment, auction});
+  saveState({phase:'auction', budget, basePrice, increment, timerSecs: (timerSecs!=null && isFinite(timerSecs)) ? timerSecs : S.timerSecs, auction});
 }
 
 function nextPlayerSetup(auction, basePrice){
@@ -1909,6 +1994,7 @@ function nextPlayerSetup(auction, basePrice){
 function auctionBid(team){
   const a = JSON.parse(JSON.stringify(S.auction));
   if(a.done || a.turn!==team) return;
+  a.note = null;
   const teamObj = team==='a' ? a.teamA : a.teamB;
   if(teamObj.budget < a.currentBid) return;
   a.leader = team;
@@ -1920,9 +2006,10 @@ function auctionBid(team){
   saveState({auction:a});
 }
 
-function auctionPass(team){
+function auctionPass(team, auto){
   const a = JSON.parse(JSON.stringify(S.auction));
   if(a.done || a.turn!==team) return;
+  a.note = auto ? 'Team ' + team.toUpperCase() + ' ran out of time \u2014 passed automatically.' : null;
   // fall back to S.format for an auction started before capA/capB existed
   if(a.capA==null) a.capA = S.format;
   if(a.capB==null) a.capB = S.format;
@@ -1970,7 +2057,8 @@ function saveAuctionToHistory(){
     mode:'draft',
     teamA:{captain:playerName(S.captains.a), players:a.teamA.ids.map(playerName)}, teamAIds:a.teamA.ids,
     teamB:{captain:playerName(S.captains.b), players:a.teamB.ids.map(playerName)}, teamBIds:a.teamB.ids,
-    subs:(S.subIds||[]).map(playerName), subIds:S.subIds||[]
+    subs:(S.subIds||[]).map(playerName), subIds:S.subIds||[],
+    att:S.attSnap || null
   });
   saveState({auction:Object.assign({}, a, {savedToHistory:true}), phase:'complete', lastHistoryId:id});
 }
@@ -2007,7 +2095,9 @@ function startNewMatch(){
   saveState(Object.assign(defaultState(), {
     format:S.format,
     selectedIds:(S.selectedIds||[]).filter(id=>findPlayer(id)),
-    budget:S.budget, basePrice:S.basePrice, increment:S.increment
+    budget:S.budget, basePrice:S.basePrice, increment:S.increment, timerSecs:S.timerSecs,
+    // anyone carried over from last time counts as "in" from now, so pulling out late is still noticed
+    rsvpLog:(S.selectedIds||[]).filter(id=>findPlayer(id)).map(id=>({id, a:'in', t:new Date().toISOString(), by:'carry'}))
   }));
 }
 
@@ -2675,7 +2765,7 @@ function render(){
 
   app.innerHTML = renderTopbar() + renderTurnBanner() + renderProgress() + renderBanner() + renderBody()
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal() + renderAwardsModal()
-    + renderProfileModal() + renderPinModal() + updateToastHtml();
+    + renderAttendanceModal() + renderProfileModal() + renderPinModal() + updateToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -2721,13 +2811,14 @@ function renderTopbar(){
       <button class="btn btn-ghost btn-sm" onclick="toggleAwards()">🏆 Awards</button>
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
+      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleAttendance()">📋 Attendance</button>` : ''}
       ${themeBtnHtml()}
       <button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>
       ${isHost() ? `
       <span class="chip" style="cursor:default;">Host</span>
       ${(isHostDevice && db) ? `<button class="btn btn-ghost btn-sm" onclick="releaseHost()" title="Log out of host mode on this device">Step down</button>` : ''}
       ` : `
-      <button type="button" class="chip" title="Your profile" onclick="openProfile('${getMyPlayerId()}')">${esc(myRoleLabel())}</button>
+      <button type="button" class="chip" title="Your profile" onclick="openProfile('${getMyPlayerId()}')">${esc(myRoleLabel())}${incomingRequests(getMyPlayerId()).length ? ' <span style="color:var(--danger);">●</span>' : ''}</button>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
       `}
     </div>
@@ -2752,10 +2843,12 @@ function renderBanner(){
   if(!db){
     return `<div class="banner amber">Playing solo on this device — live sync to other phones isn't switched on here, but everything below still works on this phone.</div>`;
   }
+  let out = '';
   if(!isHost() && myTeamRole() && !PINS[pinKey(getLoginName())]){
-    return `<div class="banner amber" style="display:flex; align-items:center; justify-content:space-between; gap:10px;"><span>🔑 You're a captain — set a 4-digit PIN so nobody else can bid as you.</span><button class="btn btn-sm" onclick="openPinModal()">Set PIN</button></div>`;
+    out += `<div class="banner amber" style="display:flex; align-items:center; justify-content:space-between; gap:10px;"><span>🔑 You're a captain — set a 4-digit PIN so nobody else can bid as you.</span><button class="btn btn-sm" onclick="openPinModal()">Set PIN</button></div>`;
   }
-  return '';
+  out += renderRivalBanner();
+  return out;
 }
 
 function isHost(){ return isHostDevice || (dbReady && !db); }
@@ -2877,6 +2970,7 @@ function statsMonthNext(){ statsMonth = shiftYearMonth(statsMonth||currentYearMo
 function statsMonthReset(){ statsMonth = null; render(); }
 
 function historyForMonth(month){
+  if(Array.isArray(month)) return month;      // already a list of matches (season / all-time views)
   return HISTORY.filter(h=> yearMonthOf(h.date)===month);
 }
 // Tallies played/win/loss/draw/goals/assists per player from just this
@@ -3025,8 +3119,8 @@ function renderPodiumHtml(sorted, monthly){
   return `<div class="podium">${card(1)}${card(0)}${card(2)}</div>`;
 }
 function renderStatsTable(){
-  const month = statsMonth || currentYearMonth();
-  const monthly = computeMonthlyStats(month);
+  const sc = statsScopeInfo();
+  const monthly = computeMonthlyStats(sc.entries);
   const ids = Object.keys(monthly);
   const rate = id=> monthly[id].played ? monthly[id].wins/monthly[id].played : 0;
   const sorted = ids.slice().sort((x,y)=> (monthly[y].wins - monthly[x].wins) || (rate(y) - rate(x)) || (monthly[y].goals - monthly[x].goals) || playerName(x).localeCompare(playerName(y)));
@@ -3034,23 +3128,29 @@ function renderStatsTable(){
   const topScorerGoals = topScorer ? monthly[topScorer].goals : 0;
   const topAssister = ids.slice().sort((x,y)=> monthly[y].assists - monthly[x].assists)[0];
   const topAssisterCount = topAssister ? monthly[topAssister].assists : 0;
-  const potmCounts = computeMonthlyPotmCounts(month);
+  const potmCounts = computeMonthlyPotmCounts(sc.entries);
   const potmIds = Object.keys(potmCounts);
   const topPotm = potmIds.slice().sort((x,y)=>potmCounts[y]-potmCounts[x])[0];
   const topPotmCount = topPotm ? potmCounts[topPotm] : 0;
-  return `
-  <div class="row" style="justify-content:space-between; align-items:center;">
-    <div class="panel-title" style="font-size:1.3rem; margin-bottom:0;">${esc(formatYearMonth(month))}</div>
-    <span class="row-controls">
+  const nav = sc.kind==='month' ? `
       <button class="icon-btn" title="Previous month" onclick="statsMonthPrev()">◂</button>
       ${statsMonth && statsMonth!==currentYearMonth() ? `<button class="btn btn-sm" onclick="statsMonthReset()">Today</button>` : ''}
-      <button class="icon-btn" title="Next month" onclick="statsMonthNext()">▸</button>
-    </span>
+      <button class="icon-btn" title="Next month" onclick="statsMonthNext()">▸</button>`
+    : sc.kind==='season' ? `
+      <button class="icon-btn" title="Previous season" onclick="statsSeasonPrev()">◂</button>
+      ${statsSeason && statsSeason!==String(new Date().getFullYear()) ? `<button class="btn btn-sm" onclick="statsSeasonReset()">This year</button>` : ''}
+      <button class="icon-btn" title="Next season" onclick="statsSeasonNext()">▸</button>`
+    : `<span class="panel-sub" style="margin:0;">${sc.entries.length} match${sc.entries.length===1?'':'es'}${HISTORY.length>=200 ? ' (latest 200)' : ''}</span>`;
+  return `
+  <div class="row" style="justify-content:space-between; align-items:center;">
+    <div class="panel-title" style="font-size:1.3rem; margin-bottom:0;">${esc(sc.title)}</div>
+    <span class="row-controls">${nav}</span>
   </div>
-  ${!ids.length ? `<div class="empty-note" style="margin-top:8px;">No matches recorded in ${esc(formatYearMonth(month))} yet.</div>` : `
-  ${topScorerGoals>0 ? `<div class="panel-sub" style="margin:8px 0 2px;">🥇 Golden boot: <b style="color:var(--chalk);">${esc(playerName(topScorer))}</b> — ${topScorerGoals} goal${topScorerGoals===1?'':'s'}</div>` : ''}
-  ${topAssisterCount>0 ? `<div class="panel-sub" style="margin:2px 0;">🎯 Playmaker: <b style="color:var(--chalk);">${esc(playerName(topAssister))}</b> — ${topAssisterCount} assist${topAssisterCount===1?'':'s'}</div>` : ''}
-  ${topPotmCount>0 ? `<div class="panel-sub" style="margin:2px 0 8px;">🏅 Most POTMs: <b style="color:var(--chalk);">${esc(playerName(topPotm))}</b> — ${topPotmCount}</div>` : ''}
+  ${!ids.length ? `<div class="empty-note" style="margin-top:8px;">${esc(sc.empty)}</div>` : `
+  ${sc.kind!=='month' ? renderRecordsHtml(sc.entries, sc.kind) : ''}
+  ${sc.kind==='month' && topScorerGoals>0 ? `<div class="panel-sub" style="margin:8px 0 2px;">🥇 Golden boot: <b style="color:var(--chalk);">${nameLink(topScorer)}</b> — ${topScorerGoals} goal${topScorerGoals===1?'':'s'}</div>` : ''}
+  ${sc.kind==='month' && topAssisterCount>0 ? `<div class="panel-sub" style="margin:2px 0;">🎯 Playmaker: <b style="color:var(--chalk);">${nameLink(topAssister)}</b> — ${topAssisterCount} assist${topAssisterCount===1?'':'s'}</div>` : ''}
+  ${sc.kind==='month' && topPotmCount>0 ? `<div class="panel-sub" style="margin:2px 0 8px;">🏅 Most POTMs: <b style="color:var(--chalk);">${nameLink(topPotm)}</b> — ${topPotmCount}</div>` : ''}
   ${renderPodiumHtml(sorted, monthly)}
   <div class="stand-wrap"><div class="stand">
     <div class="stand-row head"><span>#</span><span>Player</span><span class="num">P</span><span class="num">W</span><span class="num">D</span><span class="num">L</span><span class="num">⚽</span><span class="num">🅰</span><span>Win rate</span></div>
@@ -3059,7 +3159,7 @@ function renderStatsTable(){
       const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
       return `<div class="stand-row">
         <span class="num">${i+1}</span>
-        <span class="nm">${nameLink(id)}${starBadge(id)}${potmCounts[id]?' 🏅'+potmCounts[id]:''}${streakBadge(id, month)}</span>
+        <span class="nm">${nameLink(id)}${starBadge(id)}${potmCounts[id]?' 🏅'+potmCounts[id]:''}${streakBadge(id, sc.entries)}</span>
         <span class="num">${s.played}</span><span class="num" style="color:var(--good);">${s.wins}</span><span class="num">${s.draws}</span><span class="num" style="color:var(--danger);">${s.losses}</span><span class="num">${s.goals}</span><span class="num">${s.assists}</span>
         <span class="wr"><span class="wr-bar"><i style="width:${wr}%"></i></span>${wr}%</span>
       </div>`;
@@ -3328,18 +3428,20 @@ function renderAwardsCardHtml(){
 }
 function renderAwardsModal(){
   if(!showAwards) return '';
+  const tabs = [['month','Month'],['season','Season'],['all','All-time'],['rivals','⚔️ Rivals']];
   return `
   <div class="modal-backdrop" onclick="if(event.target===this) toggleAwards();">
     <div class="modal">
       <div class="row" style="justify-content:space-between; margin-bottom:4px;">
         <div class="panel-title" style="margin:0;">🏆 Awards</div>
         <span class="row-controls">
-          <button class="btn btn-sm" onclick="toggleAwardsCard()">${showAwardsCard ? '📋 Full board' : '📤 Shareable card'}</button>
+          ${statsScope==='month' ? `<button class="btn btn-sm" onclick="toggleAwardsCard()">${showAwardsCard ? '📋 Full board' : '📤 Shareable card'}</button>` : ''}
           <button class="icon-btn" onclick="toggleAwards()">✕</button>
         </span>
       </div>
-      <div class="panel-sub">Podium, golden boot, form and the full wins/losses table — everyone's, open to everyone. Resets each month.</div>
-      ${showAwardsCard ? renderAwardsCardHtml() : renderStatsTable()}
+      <div class="panel-sub">Podium, golden boot, form and the full wins/losses table — everyone's, open to everyone. Flip between this month, the season, all-time records and rivalries.</div>
+      <div class="scope-tabs">${tabs.map(t=>`<button class="toggle-btn ${statsScope===t[0]?'active':''}" onclick="setStatsScope('${t[0]}')">${t[1]}</button>`).join('')}</div>
+      ${statsScope==='rivals' ? renderRivalsBoard() : (showAwardsCard && statsScope==='month' ? renderAwardsCardHtml() : renderStatsTable())}
     </div>
   </div>`;
 }
@@ -3541,12 +3643,19 @@ function renderBudget(){
         <label>Bid increment</label>
         <input type="number" min="1" step="1" id="fIncrement" value="${S.increment}">
       </div>
+      <div class="field grow">
+        <label>Time per decision</label>
+        <select id="fTimer" class="field-input">
+          ${[[0,'No timer'],[20,'20 seconds'],[30,'30 seconds'],[45,'45 seconds'],[60,'60 seconds']].map(o=>`<option value="${o[0]}" ${(S.timerSecs==null?30:S.timerSecs)===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+        </select>
+      </div>
     </div>
+    <div class="panel-sub" style="margin-top:8px;">When a captain's time runs out they pass automatically, so one slow phone can't stall the draft.</div>
     <div class="banner" style="margin-top:14px;">If a captain runs out of budget before their squad is full, whoever is still short gets the remaining unsold players free of charge once the other team fills up.</div>
   </div>
   <div class="footer-actions">
     <button class="btn btn-ghost" onclick="saveState({phase:'captains'})">◂ Back</button>
-    <button class="btn btn-primary" onclick="startAuction(Number(document.getElementById('fBudget').value)||100, Number(document.getElementById('fBase').value)||10, Number(document.getElementById('fIncrement').value)||5)">Start auction ▸</button>
+    <button class="btn btn-primary" onclick="startAuction(Number(document.getElementById('fBudget').value)||100, Number(document.getElementById('fBase').value)||10, Number(document.getElementById('fIncrement').value)||5, Number(document.getElementById('fTimer').value))">Start auction ▸</button>
   </div>
   `;
 }
@@ -3636,11 +3745,19 @@ function renderAuction(){
           ${attrChips(currentId)}
           <div class="price">₹${a.currentBid}</div>
           <div class="leader">${a.leader ? 'Leading: Team '+a.leader.toUpperCase()+' at ₹'+a.pendingLeaderPrice : 'No bids yet'}</div>
+          ${timerHtml(a)}
         ` : `<div class="tag">Auction complete</div><div class="name">🏁</div>`}
       </div>
       ${capCardHtml('b')}
     </div>
     ${renderAuctionActions()}
+    ${a.note && !a.done ? `<div class="banner amber" style="margin-top:10px;">⏱ ${esc(a.note)}</div>` : ''}
+    ${(isHost() && !a.done) ? `<div class="row" style="gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;">
+      <span class="panel-sub" style="margin:0;">⏱ Time per decision</span>
+      <select class="field-input" style="width:auto;" onchange="setTimerSecs(Number(this.value))">
+        ${[[0,'No timer'],[20,'20 s'],[30,'30 s'],[45,'45 s'],[60,'60 s']].map(o=>`<option value="${o[0]}" ${(S.timerSecs||0)===o[0]?'selected':''}>${o[1]}</option>`).join('')}
+      </select>
+    </div>` : ''}
     ${a.done ? shareButtonsHtml() : ''}
   </div>
 
@@ -4029,9 +4146,9 @@ function renderHistoryModal(){
 }
 
 /* ============================= Player profile ============================= */
-function openProfile(id){
+function openProfile(id, tab){
   if(!id || !findPlayer(id)) return;
-  profileId = id; render();
+  profileId = id; profileTab = tab || 'stats'; render();
 }
 function closeProfile(){ profileId = null; render(); }
 
@@ -4089,6 +4206,8 @@ function renderProfileModal(){
         <button class="icon-btn" onclick="closeProfile()">✕</button>
       </div>
       ${hostLine}
+      ${profileTabsHtml(p, isMe)}
+      ${profileTab==='rivals' ? rivalsTabHtml(p, isMe) : `
       ${s.played ? `
       <div class="pf-grid">
         ${tile(s.played,'Played')}${tile(wr+'%','Win rate')}${tile(s.wins+'-'+s.draws+'-'+s.losses,'W-D-L')}
@@ -4104,6 +4223,7 @@ function renderProfileModal(){
           <div class="mate-pct">${Math.round(100*m.w/m.g)}%</div>
         </div>`).join('') : `<div class="empty-note">Play a couple more matches together to see who ${esc(p.name)} wins with.</div>`}
       ` : `<div class="empty-note" style="margin-top:14px;">No matches recorded for ${esc(p.name)} yet.</div>`}
+      ${isMe ? attendanceLineHtml(p.id) : ''}
       ${isMe ? `
       <div class="pf-section">Your login</div>
       <div class="row" style="gap:10px; flex-wrap:wrap;">
@@ -4113,6 +4233,7 @@ function renderProfileModal(){
       ${(isHost() && !isMe && db && hasPin(p.name)) ? `
       <div class="pf-section">Host</div>
       <button class="btn btn-sm" onclick="hostResetPin('${p.id}')">${pinResetArm===p.id ? 'Tap again to confirm' : '🔑 Reset their PIN'}</button>` : ''}
+      `}
     </div>
   </div>`;
 }
@@ -4245,7 +4366,7 @@ function checkTurnAlert(){
 function renderTurnBanner(){
   const i = myTurnInfo();
   if(!i) return '';
-  return `<div class="turn-banner" role="alert"><span class="tb-dot"></span><span><b>Your turn!</b> ${i.player ? esc(i.player)+' is on the block — ' : ''}bid ₹${i.bid} or pass.</span></div>`;
+  return `<div class="turn-banner" role="alert"><span class="tb-dot"></span><span><b>Your turn!</b> ${i.player ? esc(i.player)+' is on the block — ' : ''}bid ₹${i.bid} or pass.</span>${S.timerSecs ? `<span class="tb-timer" id="tbTimer">⏱ ${Math.ceil(timerLeft())}s</span>` : ''}</div>`;
 }
 function toggleAlerts(){
   alertsOn = !alertsOn;
@@ -4256,6 +4377,359 @@ function toggleAlerts(){
     try{ if('Notification' in window && Notification.permission==='default') Notification.requestPermission(); }catch(e){}
   }else stopTitleFlash();
   render();
+}
+
+/* ---- auction countdown ----
+   Each phone times a turn from the moment it sees that turn begin (no shared clock needed).
+   The captain whose turn it is auto-passes at zero; the host and the other captain back that up
+   a few seconds later in case that phone is asleep. Friends watching never write anything. */
+function auctionBothOpen(a){
+  const capA = a.capA || S.format, capB = a.capB || S.format;
+  return teamFull(a.teamA,capA) === teamFull(a.teamB,capB);
+}
+function syncTimerKey(){
+  const a = S.auction;
+  const key = a ? [a.index, a.currentBid, a.turn, a.leader||'', a.passesInARow||0].join('|') : '';
+  if(key !== timerKey){ timerKey = key; timerStart = Date.now(); timerFiredAt = 0; }
+}
+function timerActive(){
+  const a = S.auction;
+  return !!(S.timerSecs > 0 && S.phase==='auction' && a && !a.done && auctionBothOpen(a));
+}
+function timerLeft(){
+  syncTimerKey();
+  return Math.max(0, (S.timerSecs||0) - (Date.now() - timerStart) / 1000);
+}
+function timerHtml(a){
+  if(!timerActive()) return '';
+  const left = timerLeft(), pct = Math.round(100 * left / S.timerSecs);
+  return `<div class="turn-timer ${left<=5?'urgent':''}" id="turnTimer">
+    <div class="tt-label"><span>Team ${a.turn.toUpperCase()} to decide</span><b id="ttText">${Math.ceil(left)}s</b></div>
+    <div class="tt-bar"><i id="ttBar" style="width:${pct}%"></i></div>
+  </div>`;
+}
+function setTimerSecs(n){ saveState({timerSecs: Number(n)||0}); }
+function tickTimer(){
+  if(!timerActive()) return;
+  const a = S.auction;
+  const left = timerLeft();
+  const t = document.getElementById('ttText'); if(t) t.textContent = Math.ceil(left) + 's';
+  const bar = document.getElementById('ttBar'); if(bar) bar.style.width = Math.round(100*left/S.timerSecs) + '%';
+  const box = document.getElementById('turnTimer'); if(box) box.classList.toggle('urgent', left<=5);
+  const tb = document.getElementById('tbTimer'); if(tb) tb.textContent = '⏱ ' + Math.ceil(left) + 's';
+  const mine = myTeamRole() === a.turn;
+  if(mine && left>0 && left<=5 && timerWarnKey!==timerKey){
+    timerWarnKey = timerKey;
+    if(alertsOn){ try{ if(navigator.vibrate) navigator.vibrate(120); }catch(e){} }
+  }
+  if(left > 0) return;
+  const overdue = (Date.now() - timerStart)/1000 - S.timerSecs;
+  const canBackUp = isHost() || !!myTeamRole();
+  if(((mine && overdue >= 0) || (canBackUp && overdue >= 3.5)) && Date.now() - timerFiredAt > 5000){
+    timerFiredAt = Date.now();
+    auctionPass(a.turn, true);
+  }
+}
+setInterval(tickTimer, 500);
+
+/* ============================= Stats: season, all-time, records ============================= */
+function setStatsScope(k){ statsScope = k; showAwardsCard = false; render(); }
+function statsSeasonYear(){ return statsSeason || String(new Date().getFullYear()); }
+function statsSeasonPrev(){ statsSeason = String(Number(statsSeasonYear()) - 1); render(); }
+function statsSeasonNext(){ statsSeason = String(Number(statsSeasonYear()) + 1); render(); }
+function statsSeasonReset(){ statsSeason = null; render(); }
+function statsScopeInfo(){
+  if(statsScope==='season'){
+    const y = statsSeasonYear();
+    return {kind:'season', entries: HISTORY.filter(h=> String(new Date(h.date).getFullYear())===y), title:'Season ' + y, empty:'No matches recorded in ' + y + ' yet.'};
+  }
+  if(statsScope==='all'){
+    return {kind:'all', entries: HISTORY.slice(), title:'All-time', empty:'No matches recorded yet.'};
+  }
+  const month = statsMonth || currentYearMonth();
+  return {kind:'month', month, entries: historyForMonth(month), title: formatYearMonth(month), empty:'No matches recorded in ' + formatYearMonth(month) + ' yet.'};
+}
+function longestWinStreak(id, entries){
+  let best = 0, cur = 0;
+  entries.slice().reverse().forEach(h=>{   // oldest first
+    const inA = (h.teamAIds||[]).includes(id), inB = (h.teamBIds||[]).includes(id);
+    if(!inA && !inB) return;
+    if(!h.winner) return;
+    const won = (inA && h.winner==='a') || (inB && h.winner==='b');
+    if(won){ cur++; if(cur>best) best = cur; } else cur = 0;
+  });
+  return best;
+}
+function computeRecords(entries, minGames){
+  const stats = computeMonthlyStats(entries);
+  const ids = Object.keys(stats);
+  const out = [];
+  const top = (icon, label, fn, fmt, min)=>{
+    let best = -Infinity, holders = [];
+    ids.forEach(id=>{ const v = fn(id); if(v>best){ best = v; holders = [id]; } else if(v===best) holders.push(id); });
+    if(holders.length && best >= (min==null ? 1 : min)) out.push({icon, label, value: fmt ? fmt(best) : String(best), holders});
+  };
+  top('⚽', 'Most goals', id=>stats[id].goals);
+  top('🅰️', 'Most assists', id=>stats[id].assists);
+  top('🏆', 'Most wins', id=>stats[id].wins);
+  top('👟', 'Most matches', id=>stats[id].played);
+  top('📈', 'Best win rate', id=> stats[id].played>=minGames ? Math.round(100*stats[id].wins/stats[id].played) : -1, v=>v+'%', 0);
+  top('🔥', 'Longest win streak', id=>longestWinStreak(id, entries), v=>v+' in a row', 2);
+  const potm = computeMonthlyPotmCounts(entries);
+  top('🏅', 'Most POTMs', id=>potm[id]||0);
+  // single-match feats
+  let bestGoals = 0, goalHolders = [];
+  entries.forEach(h=>(h.scorers||[]).forEach(s=>{
+    if(!s.playerId || isGuest(s.playerId) || !s.goals) return;
+    if(s.goals>bestGoals){ bestGoals = s.goals; goalHolders = [s.playerId]; }
+    else if(s.goals===bestGoals && !goalHolders.includes(s.playerId)) goalHolders.push(s.playerId);
+  }));
+  if(bestGoals>=2) out.push({icon:'🎯', label:'Most goals in a match', value:bestGoals+' goals', holders:goalHolders});
+  let bigMargin = 0, bigH = null, highTotal = 0, highH = null;
+  entries.forEach(h=>{
+    if(typeof h.scoreA!=='number' || typeof h.scoreB!=='number') return;
+    const m = Math.abs(h.scoreA - h.scoreB), tot = h.scoreA + h.scoreB;
+    if(m>bigMargin){ bigMargin = m; bigH = h; }
+    if(tot>highTotal){ highTotal = tot; highH = h; }
+  });
+  const dstr = h=> new Date(h.date).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+  if(bigH && bigMargin>=2) out.push({icon:'💥', label:'Biggest win', value:Math.max(bigH.scoreA,bigH.scoreB)+'–'+Math.min(bigH.scoreA,bigH.scoreB), holders:[], note:'Team '+(bigH.scoreA>bigH.scoreB?'A':'B')+' · '+dstr(bigH)});
+  if(highH && highTotal>=4) out.push({icon:'🎆', label:'Highest-scoring game', value:highTotal+' goals', holders:[], note:highH.scoreA+'–'+highH.scoreB+' · '+dstr(highH)});
+  return out;
+}
+function renderRecordsHtml(entries, kind){
+  const recs = computeRecords(entries, kind==='all' ? 5 : 3);
+  if(!recs.length) return '';
+  return `<div class="rec-title">${kind==='all' ? '🏛 Hall of fame' : '⭐ Season highlights'}</div>
+  <div class="rec-grid">${recs.map(r=>`
+    <div class="rec-card">
+      <div class="rl">${r.icon} ${esc(r.label)}</div>
+      <div class="rv">${esc(r.value)}</div>
+      <div class="rn">${r.holders.length ? r.holders.map(id=>nameLink(id)).join(' &amp; ') : esc(r.note||'')}</div>
+    </div>`).join('')}</div>`;
+}
+
+/* ============================= Head-to-head & rivalries ============================= */
+function h2hRecord(x, y, sinceIso){
+  const out = {games:0, xw:0, yw:0, d:0};
+  const since = sinceIso ? new Date(sinceIso).getTime() : 0;
+  HISTORY.forEach(h=>{
+    if(since && new Date(h.date).getTime() < since) return;
+    if(!h.winner) return;
+    const A = h.teamAIds||[], B = h.teamBIds||[];
+    const xA = A.includes(x), xB = B.includes(x), yA = A.includes(y), yB = B.includes(y);
+    if(!((xA && yB) || (xB && yA))) return;
+    out.games++;
+    if(h.winner==='draw') out.d++;
+    else if((h.winner==='a') === xA) out.xw++;
+    else out.yw++;
+  });
+  return out;
+}
+function h2hList(id){
+  const rows = [];
+  allPlayersArr().forEach(o=>{
+    if(o.id===id || isGuest(o.id)) return;
+    const r = h2hRecord(id, o.id);
+    if(r.games>0) rows.push(Object.assign({id:o.id}, r));
+  });
+  rows.sort((a,b)=> b.games-a.games || playerName(a.id).localeCompare(playerName(b.id)));
+  return rows;
+}
+function rivalKey(x, y){ return [x,y].sort().join('__'); }
+function rivalryBetween(x, y){ return RIVALS.find(r=>r.id===rivalKey(x,y)); }
+function incomingRequests(id){ return db && id ? RIVALS.filter(r=>r.status==='pending' && r.b===id) : []; }
+function outgoingRequests(id){ return db && id ? RIVALS.filter(r=>r.status==='pending' && r.a===id) : []; }
+function activeRivalries(id){ return RIVALS.filter(r=>r.status==='active' && (!id || r.a===id || r.b===id)); }
+function rivalCooldown(r){
+  return !!(r && r.status==='declined' && r.endedAt && Date.now() - new Date(r.endedAt).getTime() < 24*36e5);
+}
+function sendRivalry(targetId){
+  const me = getMyPlayerId();
+  if(!db || !me || me===targetId || !findPlayer(targetId)) return;
+  const ex = rivalryBetween(me, targetId);
+  if(ex && (ex.status==='pending' || ex.status==='active' || rivalCooldown(ex))) return;
+  db.doc(squadPath('rivalries/' + rivalKey(me, targetId))).set({a:me, b:targetId, status:'pending', createdAt:new Date().toISOString()}).catch(()=>{});
+}
+function sendRivalryFromSelect(){
+  const el = document.getElementById('rivalPick');
+  if(el && el.value) sendRivalry(el.value);
+}
+function respondRivalry(id, accept){
+  const r = RIVALS.find(x=>x.id===id);
+  const me = getMyPlayerId();
+  if(!db || !r || r.status!=='pending' || (r.b!==me && !isHost())) return;
+  const now = new Date().toISOString();
+  db.doc(squadPath('rivalries/' + id)).update(accept ? {status:'active', startedAt:now} : {status:'declined', endedAt:now}).catch(()=>{});
+}
+function withdrawRivalry(id){
+  const r = RIVALS.find(x=>x.id===id);
+  const me = getMyPlayerId();
+  if(!db || !r || r.status!=='pending' || (r.a!==me && !isHost())) return;
+  db.doc(squadPath('rivalries/' + id)).delete().catch(()=>{});
+}
+function endRivalry(id){
+  const r = RIVALS.find(x=>x.id===id);
+  const me = getMyPlayerId();
+  if(!db || !r || r.status!=='active' || (r.a!==me && r.b!==me && !isHost())) return;
+  if(rivalArm !== id){
+    rivalArm = id; render();
+    setTimeout(()=>{ if(rivalArm===id){ rivalArm = null; render(); } }, 4000);
+    return;
+  }
+  rivalArm = null;
+  db.doc(squadPath('rivalries/' + id)).update({status:'ended', endedAt:new Date().toISOString()}).catch(()=>{});
+}
+function rivalCardHtml(r){
+  const rec = h2hRecord(r.a, r.b, r.startedAt), all = h2hRecord(r.a, r.b);
+  const me = getMyPlayerId();
+  const since = r.startedAt ? new Date(r.startedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'}) : '';
+  const canEnd = isHost() || me===r.a || me===r.b;
+  return `<div class="riv-card">
+    <div class="riv-score"><span>${nameLink(r.a)}</span><span class="sc">${rec.xw} – ${rec.yw}</span><span style="text-align:right;">${nameLink(r.b)}</span></div>
+    <div class="panel-sub">Since ${esc(since)} · ${rec.games} meeting${rec.games===1?'':'s'}${rec.d ? ' · '+rec.d+' draw'+(rec.d===1?'':'s') : ''} · all-time ${all.xw}–${all.yw}${all.d ? ' ('+all.d+' drawn)' : ''}</div>
+    ${canEnd ? `<button class="btn btn-sm btn-ghost" onclick="endRivalry('${r.id}')">${rivalArm===r.id ? 'Tap again to end it' : 'End rivalry'}</button>` : ''}
+  </div>`;
+}
+function renderRivalsBoard(){
+  const act = activeRivalries().map(r=>({r, n:h2hRecord(r.a,r.b,r.startedAt).games})).sort((x,y)=>y.n-x.n).map(x=>x.r);
+  return `<div class="panel-sub">Friendly feuds. A rivalry only counts matches played after both sides agreed to it.</div>
+  ${act.length ? act.map(rivalCardHtml).join('') : `<div class="empty-note">No rivalries yet. Open your own profile and tap <b>Rivals</b> to challenge someone.</div>`}`;
+}
+function renderRivalBanner(){
+  const me = getMyPlayerId();
+  if(!db || !me) return '';
+  return incomingRequests(me).map(r=>`<div class="banner amber" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+    <span>⚔️ <b>${esc(playerName(r.a))}</b> challenged you to a rivalry.</span>
+    <span class="row-controls"><button class="btn btn-sm btn-primary" onclick="respondRivalry('${r.id}',true)">Accept</button><button class="btn btn-sm btn-ghost" onclick="respondRivalry('${r.id}',false)">Decline</button></span>
+  </div>`).join('');
+}
+function profileTabsHtml(p, isMe){
+  const n = isMe ? incomingRequests(p.id).length : 0;
+  return `<div class="scope-tabs">
+    <button class="toggle-btn ${profileTab==='stats'?'active':''}" onclick="setProfileTab('stats')">Stats</button>
+    <button class="toggle-btn ${profileTab==='rivals'?'active':''}" onclick="setProfileTab('rivals')">⚔️ Rivals${n ? ' ('+n+')' : ''}</button>
+  </div>`;
+}
+function setProfileTab(t){ profileTab = t; render(); }
+function rivalsTabHtml(p, isMe){
+  const me = getMyPlayerId();
+  const rows = h2hList(p.id);
+  let html = '';
+  if(db){
+    if(isMe){
+      incomingRequests(p.id).forEach(r=>{
+        html += `<div class="riv-card"><div class="panel-sub" style="margin:0 0 8px;">⚔️ <b>${esc(playerName(r.a))}</b> wants a rivalry with you.</div>
+          <span class="row-controls"><button class="btn btn-sm btn-primary" onclick="respondRivalry('${r.id}',true)">Accept</button><button class="btn btn-sm btn-ghost" onclick="respondRivalry('${r.id}',false)">Decline</button></span></div>`;
+      });
+      outgoingRequests(p.id).forEach(r=>{
+        html += `<div class="riv-card"><div class="panel-sub" style="margin:0 0 8px;">Waiting for <b>${esc(playerName(r.b))}</b> to accept…</div>
+          <button class="btn btn-sm btn-ghost" onclick="withdrawRivalry('${r.id}')">Withdraw request</button></div>`;
+      });
+    }
+    const act = activeRivalries(p.id);
+    html += `<div class="pf-section">Rivalries</div>`;
+    html += act.length ? act.map(rivalCardHtml).join('') : `<div class="empty-note">No active rivalries${isMe ? ' — challenge someone below.' : '.'}</div>`;
+    if(isMe){
+      const nem = rows.filter(r=> r.yw - r.xw >= 2 && r.games >= 3 && !rivalryBetween(p.id, r.id)).slice(0,2);
+      nem.forEach(r=>{
+        html += `<div class="nemesis"><span>😤 <b>${esc(playerName(r.id))}</b> keeps beating you (${r.xw}–${r.yw}).</span><button class="btn btn-sm" onclick="sendRivalry('${r.id}')">Start a rivalry</button></div>`;
+      });
+      const cands = allPlayersArr().filter(o=>!isGuest(o.id) && o.id!==p.id && !(rivalryBetween(p.id,o.id) && ['pending','active'].includes(rivalryBetween(p.id,o.id).status)) && !rivalCooldown(rivalryBetween(p.id,o.id)));
+      if(cands.length){
+        html += `<div class="pf-section">Challenge someone</div>
+        <div class="login-row"><select id="rivalPick" class="field-input grow" style="min-width:0;">${cands.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
+        <button class="btn btn-primary" style="flex:none; white-space:nowrap;" onclick="sendRivalryFromSelect()">⚔️ Send</button></div>
+        <div class="panel-sub" style="margin-top:6px;">They have to accept before it starts.</div>`;
+      }
+    }else if(me && me!==p.id){
+      const ex = rivalryBetween(me, p.id);
+      if(!ex || ex.status==='declined' || ex.status==='ended'){
+        html += rivalCooldown(ex)
+          ? `<div class="panel-sub" style="margin-top:8px;">${esc(p.name)} declined a recent request — try again tomorrow.</div>`
+          : `<div style="margin-top:8px;"><button class="btn btn-sm" onclick="sendRivalry('${p.id}')">⚔️ Challenge ${esc(p.name)} to a rivalry</button></div>`;
+      }else if(ex.status==='pending'){
+        html += ex.a===me
+          ? `<div class="panel-sub" style="margin-top:8px;">Request sent — waiting for ${esc(p.name)}. <button class="btn btn-sm btn-ghost" onclick="withdrawRivalry('${ex.id}')">Withdraw</button></div>`
+          : `<div style="margin-top:8px;" class="row-controls"><button class="btn btn-sm btn-primary" onclick="respondRivalry('${ex.id}',true)">Accept ${esc(p.name)}'s challenge</button><button class="btn btn-sm btn-ghost" onclick="respondRivalry('${ex.id}',false)">Decline</button></div>`;
+      }
+    }
+  }
+  html += `<div class="pf-section">Head-to-head ${isMe ? '(you vs everyone)' : 'for ' + esc(p.name)}</div>`;
+  html += rows.length ? rows.map(r=>`
+    <div class="h2h-row">
+      <div>${nameLink(r.id)}<small>${r.games} meeting${r.games===1?'':'s'} on opposite teams</small></div>
+      <div class="h2h-rec" style="color:${r.xw>r.yw?'var(--good)':r.xw<r.yw?'var(--danger)':'var(--chalk-dim)'};">${r.xw}–${r.d}–${r.yw}</div>
+    </div>`).join('') + `<div class="panel-sub" style="margin-top:6px;">Wins–draws–losses against each player, from ${isMe ? 'your' : esc(p.name)+'\\u2019s'} side.</div>`
+    : `<div class="empty-note">No matches against other players recorded yet.</div>`;
+  return html;
+}
+
+/* ============================= Attendance (host) ============================= */
+function toggleAttendance(){ showAttendance = !showAttendance; render(); }
+function attPlayed(h, id){ return (h.teamAIds||[]).includes(id) || (h.teamBIds||[]).includes(id) || (h.subIds||[]).includes(id); }
+function attInvolved(h, id){
+  return attPlayed(h,id) || !!(h.att && ((h.att.expected||[]).includes(id) || (h.att.dropped||[]).some(d=>d.id===id)));
+}
+function computeAttendance(){
+  const win = HISTORY.slice(0, ATT_WINDOW);
+  return allPlayersArr().filter(p=>!isGuest(p.id)).map(p=>{
+    let oldest = -1;
+    win.forEach((h,i)=>{ if(attInvolved(h,p.id)) oldest = i; });
+    const olderExists = HISTORY.slice(ATT_WINDOW).some(h=>attInvolved(h,p.id));
+    const opp = olderExists ? win.length : (oldest>=0 ? oldest+1 : 0);
+    const span = win.slice(0, opp);
+    let played = 0, late = 0, streak = 0, last = null;
+    span.forEach(h=>{
+      if(attPlayed(h,p.id)){ played++; if(!last) last = h.date; }
+      if(h.att && (h.att.dropped||[]).some(d=>d.id===p.id && d.late)) late++;
+    });
+    for(const h of span){ if(attPlayed(h,p.id)) streak++; else break; }
+    const pct = opp ? Math.round(100*played/opp) : null;
+    let status = 'ok';
+    if(!opp) status = 'new';
+    else if(late>=2 || (opp>=3 && pct<50)) status = 'bad';
+    else if(late===1 || (opp>=3 && pct<80)) status = 'mid';
+    return {id:p.id, name:p.name, unavailable:!!p.unavailable, opp, played, late, streak, pct, last, status};
+  });
+}
+const ATT_LABEL = {ok:'🟢 Reliable', mid:'🟡 Patchy', bad:'🔴 Flaky', new:'⚪ New'};
+function attendanceLineHtml(id){
+  const r = computeAttendance().find(x=>x.id===id);
+  if(!r || !r.opp) return '';
+  return `<div class="pf-section">Your attendance</div>
+    <div class="panel-sub" style="margin:0;">Played ${r.played} of the last ${r.opp} · ${r.late} late drop-out${r.late===1?'':'s'} · <span class="st-chip ${r.status}">${ATT_LABEL[r.status]}</span></div>`;
+}
+function renderAttendanceModal(){
+  if(!showAttendance) return '';
+  if(!isHost()){ showAttendance = false; return ''; }
+  const rows = computeAttendance();
+  const order = {bad:0, mid:1, ok:2, new:3};
+  rows.sort((x,y)=> order[x.status]-order[y.status] || ((x.pct==null?101:x.pct)-(y.pct==null?101:y.pct)) || x.name.localeCompare(y.name));
+  const dropsNow = liveDrops();
+  const inNow = (S.selectedIds||[]).filter(id=>!isGuest(id) && findPlayer(id)).length;
+  const ago = iso=>{ const m = Math.round((Date.now()-new Date(iso).getTime())/60000); return m<60 ? m+' min ago' : Math.round(m/60)+' h ago'; };
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleAttendance();">
+    <div class="modal" style="max-width:560px;">
+      <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+        <div class="panel-title" style="margin:0;">📋 Attendance</div>
+        <button class="icon-btn" onclick="toggleAttendance()">✕</button>
+      </div>
+      <div class="panel-sub">Who turns up and who bails, over the last ${ATT_WINDOW} matches (counted from each player's first one). A <b>late drop-out</b> is someone who ticked in, then out again within ${LATE_HOURS} hours of you locking the squad.</div>
+      <div class="host-detail" style="display:block; margin-bottom:10px;"><b>${inNow}</b> in for today${dropsNow.length ? ' · dropped out: ' + dropsNow.map(d=>esc(playerName(d.id))+(d.late?' (late':' (')+', '+ago(d.at)+')').join(', ') : ' · nobody has dropped out'}</div>
+      ${HISTORY.length ? `
+      <div class="att-row head"><span>Player</span><span class="num">Played</span><span class="num">Late</span><span>Status</span></div>
+      ${rows.map(r=>`
+      <div class="att-row" style="${r.unavailable?'opacity:.55;':''}">
+        <span>${nameLink(r.id)}<small>${r.last ? 'Last played '+esc(new Date(r.last).toLocaleDateString(undefined,{day:'numeric',month:'short'}))+(r.streak>1?' · '+r.streak+' in a row':'') : 'No matches yet'}</small></span>
+        <span class="num">${r.opp ? r.played+'/'+r.opp+'<small>'+r.pct+'%</small>' : '–'}</span>
+        <span class="num" style="${r.late?'color:var(--danger);':''}">${r.late}</span>
+        <span><span class="st-chip ${r.status}">${ATT_LABEL[r.status]}</span></span>
+      </div>`).join('')}` : `<div class="empty-note">No matches recorded yet — attendance builds up as you save them.</div>`}
+      <div class="panel-sub" style="margin-top:10px;">Reliable: 80%+ and no late drop-outs. Patchy: under 80%, or one late drop-out. Flaky: under 50%, or two or more late drop-outs.</div>
+    </div>
+  </div>`;
 }
 
 /* ============================= Boot ============================= */
