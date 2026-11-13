@@ -1,0 +1,3470 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matchday Draft</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Teko:wght@500;600;700&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --pitch-bg:#0b3d2e;
+    --stripe:#0e4735;
+    --panel:#103a2c;
+    --panel-2:#0c2e22;
+    --line:rgba(244,247,242,.14);
+    --line-strong:rgba(244,247,242,.28);
+    --chalk:#f4f7f2;
+    --chalk-dim:#aec2b8;
+    --chalk-faint:#7f9689;
+    --amber:#ffc53d;
+    --amber-ink:#33230a;
+    --teamA:#5db3ec;
+    --teamA-dim:rgba(93,179,236,.14);
+    --teamB:#ff7a63;
+    --teamB-dim:rgba(255,122,99,.14);
+    --danger:#f0555b;
+    --good:#5fcf8a;
+    --radius:14px;
+    --radius-sm:9px;
+    font-size:16px;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(0deg, var(--stripe) 0 48px, var(--pitch-bg) 48px 96px);
+    color:var(--chalk);
+    font-family:'Work Sans', system-ui, -apple-system, sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--amber);color:var(--amber-ink);}
+
+  h1,h2,h3,.display{
+    font-family:'Teko','Oswald',sans-serif;
+    font-weight:600;
+    letter-spacing:.01em;
+    text-wrap:balance;
+    margin:0;
+  }
+  .mono{font-family:'Space Mono','IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+
+  a{color:inherit;}
+  button{font-family:inherit;}
+  button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--amber);
+    outline-offset:2px;
+  }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:18px 16px 64px;
+  }
+
+  /* ---------- Header / scoreboard bar ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand .ball{font-size:1.5rem;}
+  .brand h1{font-size:2rem; line-height:1;}
+  .brand small{color:var(--chalk-dim); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase;}
+
+  .role-pill{
+    display:flex; align-items:center; gap:8px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:6px 6px 6px 14px;
+  }
+  .role-pill label{font-size:.68rem; text-transform:uppercase; letter-spacing:.1em; color:var(--chalk-faint);}
+  .role-pill select{
+    background:var(--panel-2);
+    color:var(--chalk);
+    border:1px solid var(--line-strong);
+    border-radius:999px;
+    padding:6px 12px;
+    font-size:.85rem;
+    font-weight:600;
+  }
+
+  .progress-strip{
+    display:flex;
+    gap:6px;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+  }
+  .progress-strip .step{
+    flex:1;
+    min-width:70px;
+    text-align:center;
+    padding:7px 4px;
+    border-radius:999px;
+    font-size:.68rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    font-weight:600;
+    color:var(--chalk-faint);
+    background:var(--panel-2);
+    border:1px solid var(--line);
+  }
+  .progress-strip .step.active{
+    color:var(--amber-ink);
+    background:var(--amber);
+    border-color:var(--amber);
+  }
+  .progress-strip .step.done{
+    color:var(--chalk);
+    background:var(--panel);
+    border-color:var(--good);
+  }
+
+  /* ---------- Panels / cards ---------- */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .panel-title{
+    font-size:1.5rem;
+    margin-bottom:4px;
+  }
+  .panel-sub{
+    color:var(--chalk-dim);
+    font-size:.88rem;
+    margin-bottom:16px;
+    line-height:1.5;
+  }
+
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .grow{flex:1; min-width:180px;}
+
+  input[type=text], input[type=password], input[type=number], select.field-input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line-strong);
+    color:var(--chalk);
+    border-radius:var(--radius-sm);
+    padding:10px 12px;
+    font-size:.95rem;
+    font-family:inherit;
+  }
+  input::placeholder{color:var(--chalk-faint);}
+
+  .field{display:flex; flex-direction:column; gap:6px;}
+  .field label{font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--chalk-faint);}
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    border:1px solid var(--line-strong);
+    background:var(--panel-2);
+    color:var(--chalk);
+    border-radius:999px;
+    padding:10px 18px;
+    font-size:.92rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:transform .08s ease, background .15s ease, border-color .15s ease;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--line-strong); transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn:disabled{opacity:.4; cursor:not-allowed; transform:none;}
+  .btn-primary{background:var(--amber); border-color:var(--amber); color:var(--amber-ink);}
+  .btn-danger{background:transparent; border-color:var(--danger); color:var(--danger);}
+  .btn-good{background:transparent; border-color:var(--good); color:var(--good);}
+  .btn-ghost{background:transparent; border-color:transparent; color:var(--chalk-dim); padding:8px 10px;}
+  .btn-sm{padding:6px 12px; font-size:.8rem;}
+  .btn-block{width:100%;}
+
+  .icon-btn{
+    width:30px; height:30px; border-radius:8px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--panel-2); border:1px solid var(--line-strong); color:var(--chalk-dim);
+    cursor:pointer; font-size:.85rem; line-height:1;
+  }
+  .icon-btn:hover{color:var(--chalk);}
+  .icon-btn:disabled{opacity:.3; cursor:not-allowed;}
+
+  /* ---------- Format chooser ---------- */
+  .format-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(120px,1fr));
+    gap:10px;
+    margin-bottom:4px;
+  }
+  .format-card{
+    background:var(--panel-2);
+    border:1.5px solid var(--line-strong);
+    border-radius:var(--radius-sm);
+    padding:14px 10px;
+    text-align:center;
+    cursor:pointer;
+  }
+  .format-card .num{font-family:'Teko',sans-serif; font-size:2.4rem; line-height:1; color:var(--chalk);}
+  .format-card .lbl{font-size:.72rem; color:var(--chalk-dim); text-transform:uppercase; letter-spacing:.06em;}
+  .format-card.active{border-color:var(--amber); background:rgba(255,197,61,.1);}
+  .format-card.active .num{color:var(--amber);}
+
+  /* ---------- Player list ---------- */
+  .player-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px;}
+  .player-row-wrap{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    overflow:hidden;
+  }
+  .player-row{
+    display:flex; align-items:center; gap:8px;
+    flex-wrap:wrap;
+    padding:8px 10px;
+  }
+  .rank-badge{
+    font-family:'Space Mono',monospace;
+    font-size:.72rem;
+    color:var(--chalk-faint);
+    min-width:22px;
+    text-align:center;
+  }
+  .ability-bar{
+    width:44px; height:5px; border-radius:3px;
+    background:var(--line-strong);
+    overflow:hidden;
+    flex-shrink:0;
+  }
+  .ability-bar i{display:block; height:100%; background:var(--amber);}
+  .badge-row{display:inline-flex; gap:3px; flex-wrap:wrap;}
+  .player-name{flex:1; font-weight:500; font-size:.94rem; min-width:80px;}
+  .row-controls{display:flex; gap:4px; flex-wrap:wrap;}
+
+  .attr-row{display:flex; flex-wrap:wrap; gap:4px; padding:0 10px 4px 40px;}
+  .attr-chip{
+    font-size:.66rem; color:var(--chalk-dim);
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:999px; padding:1px 8px;
+  }
+  .attr-chip.attr-plus{border-color:var(--amber); color:var(--amber); font-weight:700;}
+  .stats-line{font-size:.68rem; color:var(--chalk-faint); padding:0 10px 8px 40px;}
+  .edit-panel{
+    padding:10px 12px 12px; border-top:1px dashed var(--line-strong);
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .edit-label{font-size:.66rem; text-transform:uppercase; letter-spacing:.08em; color:var(--chalk-faint);}
+
+  .chip-toggle-row{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip-toggle{
+    background:var(--panel-2); border:1.5px solid var(--line-strong);
+    color:var(--chalk-dim);
+    border-radius:999px; padding:6px 12px;
+    font-size:.8rem; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  .chip-toggle.active{border-color:var(--amber); color:var(--amber); background:rgba(255,197,61,.1);}
+  .chip-toggle.plus{background:rgba(255,197,61,.22); font-weight:800;}
+  .add-unknown-chip{margin-top:2px;}
+
+  .select-row{cursor:pointer;}
+  .select-row .player-row{transition:background .1s ease;}
+  .select-row.selected{border-color:var(--amber);}
+  .select-row.selected .player-row{background:rgba(255,197,61,.08);}
+  .check-box{
+    width:18px; height:18px; flex-shrink:0;
+    border:1.5px solid var(--line-strong); border-radius:5px;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:.7rem; color:var(--amber-ink); font-weight:700;
+  }
+  .select-row.selected .check-box{border-color:var(--amber); background:var(--amber);}
+
+  .empty-note{
+    color:var(--chalk-faint);
+    font-size:.88rem;
+    padding:14px;
+    text-align:center;
+    border:1px dashed var(--line-strong);
+    border-radius:var(--radius-sm);
+  }
+
+  /* ---------- Mode choice ---------- */
+  .mode-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:600px){.mode-grid{grid-template-columns:1fr;}}
+  .mode-card{
+    background:var(--panel-2);
+    border:1.5px solid var(--line-strong);
+    border-radius:var(--radius);
+    padding:20px;
+    cursor:pointer;
+    text-align:left;
+  }
+  .mode-card:hover{border-color:var(--amber);}
+  .mode-card .emoji{font-size:1.8rem;}
+  .mode-card h3{font-size:1.5rem; margin:8px 0 4px;}
+  .mode-card p{color:var(--chalk-dim); font-size:.86rem; margin:0; line-height:1.5;}
+
+  /* ---------- Team cards ---------- */
+  .teams-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:600px){.teams-grid{grid-template-columns:1fr;}}
+  .team-card{
+    border-radius:var(--radius);
+    overflow:hidden;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  .team-head{
+    padding:12px 14px;
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:4px 10px;
+    color:#08160f;
+  }
+  .team-head.a{background:var(--teamA);}
+  .team-head.b{background:var(--teamB);}
+  .team-head h3{font-size:1.3rem; color:#08160f;}
+  .team-head .budget{font-family:'Space Mono',monospace; font-weight:700; font-size:1rem;}
+  .team-head .team-comp{font-size:.7rem; font-weight:700; letter-spacing:.02em; opacity:.8;}
+
+  .pos-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:.62rem; font-weight:700; letter-spacing:.03em;
+    border:1px solid; border-radius:5px;
+    padding:1px 5px;
+    background:var(--panel);
+    flex-shrink:0;
+  }
+  .chem-badge{
+    border-color:var(--amber) !important; color:var(--amber) !important;
+    background:rgba(255,197,61,.12); font-size:.68rem; padding:1px 4px;
+    cursor:help;
+  }
+  .star-badge{
+    border-color:#ffd23f !important; color:#ffd23f !important;
+    background:rgba(255,210,63,.16); font-size:.72rem; padding:1px 4px;
+  }
+  .star-toggle.active{border-color:#ffd23f; color:#ffd23f; background:rgba(255,210,63,.14);}
+  .squad-pill select{
+    background:var(--panel-2); color:var(--chalk); border:1px solid var(--line-strong);
+    border-radius:999px; padding:6px 12px; font-size:.85rem; font-weight:600;
+  }
+  .squad-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:8px 12px; margin-bottom:6px;
+  }
+  .squad-row.current{border-color:var(--amber);}
+  .balance-note{font-size:.8rem;}
+  .team-body{padding:10px 14px 14px;}
+  .team-body ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px;}
+  .team-body li{
+    display:flex; justify-content:space-between; gap:8px;
+    font-size:.9rem;
+    padding:6px 8px;
+    border-radius:7px;
+    background:var(--panel);
+  }
+  .team-body li .price{color:var(--chalk-faint); font-family:'Space Mono',monospace; font-size:.78rem;}
+  .cap-tag{
+    font-size:.62rem; text-transform:uppercase; letter-spacing:.06em;
+    background:var(--amber); color:var(--amber-ink);
+    border-radius:4px; padding:1px 5px; margin-left:6px; font-family:'Work Sans',sans-serif; font-weight:700;
+  }
+  .slot-empty{color:var(--chalk-faint); font-style:italic; font-size:.85rem; padding:6px 8px;}
+
+  .subs-card{margin-top:14px;}
+  .chip-row{display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{
+    background:var(--panel-2); border:1px solid var(--line-strong);
+    padding:5px 11px; border-radius:999px; font-size:.82rem;
+  }
+
+  /* ---------- Captains picker ---------- */
+  .pick-grid{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;}
+  .pick-name{
+    padding:8px 14px; border-radius:999px;
+    background:var(--panel-2); border:1.5px solid var(--line-strong);
+    cursor:pointer; font-size:.88rem; font-weight:500;
+  }
+  .pick-name.pick-a{border-color:var(--teamA); background:var(--teamA-dim); color:var(--teamA);}
+  .pick-name.pick-b{border-color:var(--teamB); background:var(--teamB-dim); color:var(--teamB);}
+  .pick-name.disabled{opacity:.35; cursor:not-allowed;}
+
+  .toggle-row{display:flex; gap:8px; margin-bottom:14px;}
+  .toggle-btn{
+    flex:1; padding:10px; text-align:center; border-radius:var(--radius-sm);
+    background:var(--panel-2); border:1.5px solid var(--line-strong);
+    cursor:pointer; font-weight:600; font-size:.88rem; color:var(--chalk-dim);
+  }
+  .toggle-btn.active{border-color:var(--amber); color:var(--amber); background:rgba(255,197,61,.08);}
+
+  /* ---------- Auction stage ---------- */
+  .auction-scoreboard{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    gap:14px;
+    align-items:stretch;
+    margin-bottom:16px;
+  }
+  @media (max-width:640px){.auction-scoreboard{grid-template-columns:1fr; }}
+  .cap-card{
+    border-radius:var(--radius);
+    padding:14px;
+    border:1.5px solid var(--line);
+    background:var(--panel-2);
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .cap-card.turn{box-shadow:0 0 0 2px var(--amber) inset;}
+  .cap-card.a{border-color:var(--teamA);}
+  .cap-card.b{border-color:var(--teamB);}
+  .cap-card .who{font-size:.68rem; text-transform:uppercase; letter-spacing:.09em; color:var(--chalk-faint);}
+  .cap-card .cap-name{font-size:1.3rem; font-family:'Teko',sans-serif;}
+  .cap-card .cap-budget{font-family:'Space Mono',monospace; font-size:1.6rem; font-weight:700;}
+  .cap-card.a .cap-budget{color:var(--teamA);}
+  .cap-card.b .cap-budget{color:var(--teamB);}
+  .cap-card .fill{font-size:.74rem; color:var(--chalk-faint);}
+
+  .block-card{
+    text-align:center;
+    background:var(--panel-2);
+    border:1.5px solid var(--amber);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    min-width:150px;
+    display:flex; flex-direction:column; justify-content:center; gap:4px;
+  }
+  .block-card .tag{font-size:.64rem; letter-spacing:.12em; text-transform:uppercase; color:var(--amber);}
+  .block-card .name{font-size:1.7rem; font-family:'Teko',sans-serif; line-height:1.05;}
+  .block-card .price{font-family:'Space Mono',monospace; font-size:1.9rem; font-weight:700; color:var(--chalk);}
+  .block-card .leader{font-size:.78rem; color:var(--chalk-dim);}
+  .block-card .attr-row{justify-content:center; padding:0;}
+
+  .bid-actions{display:flex; gap:8px; margin-top:6px;}
+
+  .log-panel{max-height:170px; overflow-y:auto;}
+  .log-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column-reverse; gap:5px;}
+  .log-list li{font-size:.82rem; color:var(--chalk-dim); padding:5px 8px; border-radius:7px; background:var(--panel-2);}
+  .log-list b{color:var(--chalk);}
+
+  .waiting-note{
+    text-align:center; color:var(--chalk-faint); font-size:.85rem;
+    padding:10px; font-style:italic;
+  }
+
+  .banner{
+    border-radius:var(--radius-sm);
+    padding:10px 14px;
+    font-size:.85rem;
+    margin-bottom:14px;
+    border:1px solid var(--line-strong);
+    background:var(--panel-2);
+    color:var(--chalk-dim);
+  }
+  .banner.amber{border-color:var(--amber); color:var(--amber);}
+  .banner.good{border-color:var(--good); color:var(--good);}
+
+  .history-item{
+    border:1px solid var(--line); border-radius:var(--radius-sm);
+    padding:12px 14px; margin-bottom:8px; background:var(--panel-2);
+  }
+  .history-item .hdate{font-size:.72rem; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:.06em;}
+  .history-item .hteams{font-size:.9rem; margin-top:4px; color:var(--chalk-dim);}
+
+  .footer-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:10px; flex-wrap:wrap;}
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(4,16,11,.6);
+    display:flex; align-items:flex-start; justify-content:center;
+    padding:40px 16px; z-index:50; overflow-y:auto;
+  }
+  .modal{
+    background:var(--panel); border:1px solid var(--line-strong);
+    border-radius:var(--radius); padding:20px; max-width:520px; width:100%;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .btn, .format-card, .mode-card{transition:none;}
+  }
+  .login-wrap{max-width:420px; margin:10vh auto 0; padding:0 16px;}
+  .login-wrap .brand{justify-content:center; margin-bottom:22px;}
+  .login-card{background:var(--panel); border:1px solid var(--line-strong); border-radius:var(--radius); padding:22px;}
+  .login-card h2{margin:0 0 6px; font-size:1.3rem;}
+  .login-sub{color:var(--chalk-dim); font-size:.88rem; margin:0 0 14px;}
+  .login-row{display:flex; gap:8px;}
+  .login-err{color:var(--danger); font-size:.85rem; margin-top:10px;}
+  .login-foot{margin-top:16px; text-align:center;}
+  .select-row.locked{cursor:default;}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ============================= State & storage ============================= */
+
+const FORMATS = [5,6,7,8];
+
+// Per-match state — who's playing, what mode, how the draft/split is going.
+// The player database itself (SQUAD) lives separately and persists forever.
+function defaultState(){
+  return {
+    phase:'setup',
+    format:6,
+    selectedIds:[],       // which SQUAD players are attending this match
+    playingIds:null,
+    subIds:null,
+    mode:null,
+    randomResult:null,
+    captainPickMode:null,
+    captains:{a:null,b:null},
+    budget:100,
+    basePrice:10,
+    increment:5,
+    auction:null,
+    lastHistoryId:null,   // history doc this match is writing to, for the result form
+    // "extra player" prompt (shown once selection hits exactly format*2): null
+    // until the host answers; oddSide is which team carries the extra player
+    // once they've said one more's coming; extraConfirmedEven means "no,
+    // that's everyone" was tapped so the prompt stays dismissed. Both reset
+    // whenever the format changes.
+    oddSide:null,
+    extraConfirmedEven:false,
+    updatedAt:null
+  };
+}
+
+function defaultSquad(){
+  // guests: one-off fill-ins — kept separate from players/unrankedPlayers so
+  // they never show up in roster management, the match-day picker (after
+  // today), or the monthly awards, but their name still resolves forever in
+  // old match history.
+  return { players:[], unrankedPlayers:[], guests:[], chemistryGroups:[], stats:{}, coWin:{}, rankBaseline:[], rankBaselineMonth:null };
+}
+
+let db = null;               // resolved db capability, or null
+let S = defaultState();      // synced match state, scoped to the active squad
+let SQUAD = defaultSquad();  // persistent player database for the active squad
+let HISTORY = [];            // recent saved matches for the active squad
+let rosterLoaded = false;    // this squad's roster has arrived (or definitely won't)
+let slowConnect = false;     // still waiting after a while — show a hint
+let loginDraft = '';
+let loginError = '';
+let dbReady = false;         // becomes true once we know db is usable (or definitely not)
+
+// ---- multi-squad ----
+// Everything above (S/SQUAD/HISTORY) belongs to ONE squad at a time — the
+// "active" squad every device is currently looking at, tracked by
+// currentSquadId. squadsList is every squad that exists, for the picker.
+// In db mode the active squad is a shared pointer (app/current) so every
+// phone follows the host's choice; with no db it's just a local list.
+let currentSquadId = null;
+let squadsList = [];         // [{id, name, createdAt}]
+let unsubRoster = null, unsubMatch = null, unsubHistory = null; // db-mode listener teardown
+let migratingSquad = false;  // guards this device from double-running the legacy-data migration
+let LOCAL = null;            // no-db fallback store: { currentSquadId, squads:[...], data:{[id]:{squad,state,history}} }
+let showSquadManager = false;
+let newSquadName = '';
+let showHostCode = false;   // inline "enter the host code" box on the login page
+let hostCodeDraft = '';
+let hostCodeError = false;
+
+// ---- who's using this device ----
+// Host access is a fixed, deliberate claim (Keerat's own devices) rather than
+// a casual option next to "spectator" — nobody should be able to get host
+// controls just by picking "Host" from a dropdown, or even by tapping a plain
+// "I'm the host" button (that's still just self-declaration). Instead, host
+// access is only ever granted to a device that opens the app through a
+// secret link — one you keep for yourself and never share with players —
+// of the form yourlink#host=<host code>, or by typing that code on the login
+// page. Only a SHA-256 fingerprint of the code lives in this file, so reading
+// the page source doesn't reveal it. Everyone else logs in with just their
+// name; if that player later becomes a captain, their device picks up captain
+// powers automatically the next time captains change.
+const HOST_HASH = '310a65a502a0b5285e9f9d908fd6eee263a06e3ff891e779d43ebfec308e532b';
+// Small synchronous SHA-256 (works on http/file pages where crypto.subtle may not exist).
+function sha256Hex(str){
+  const rotr = (x,n)=> (x>>>n) | (x<<(32-n));
+  const primes = []; for(let n=2; primes.length<64; n++){ if(primes.every(p=>n%p)) primes.push(n); }
+  const frac = x=> Math.floor((x-Math.floor(x))*4294967296);
+  const K = primes.map(p=>frac(Math.cbrt(p)));
+  const H = primes.slice(0,8).map(p=>frac(Math.sqrt(p)));
+  const data = Array.from(unescape(encodeURIComponent(str)), c=>c.charCodeAt(0));
+  const bitLen = data.length*8;
+  data.push(0x80);
+  while(data.length%64 !== 56) data.push(0);
+  const hi = Math.floor(bitLen/4294967296), lo = bitLen>>>0;
+  [hi,lo].forEach(w=>{ for(let s=24;s>=0;s-=8) data.push((w>>>s)&255); });
+  for(let off=0; off<data.length; off+=64){
+    const w = new Array(64);
+    for(let i=0;i<16;i++) w[i] = (data[off+4*i]<<24)|(data[off+4*i+1]<<16)|(data[off+4*i+2]<<8)|data[off+4*i+3];
+    for(let i=16;i<64;i++){
+      const s0 = rotr(w[i-15],7)^rotr(w[i-15],18)^(w[i-15]>>>3);
+      const s1 = rotr(w[i-2],17)^rotr(w[i-2],19)^(w[i-2]>>>10);
+      w[i] = (w[i-16]+s0+w[i-7]+s1)|0;
+    }
+    let [a,b,c,d,e,f,g,h] = H;
+    for(let i=0;i<64;i++){
+      const S1 = rotr(e,6)^rotr(e,11)^rotr(e,25);
+      const ch = (e&f)^(~e&g);
+      const t1 = (h+S1+ch+K[i]+w[i])|0;
+      const S0 = rotr(a,2)^rotr(a,13)^rotr(a,22);
+      const maj = (a&b)^(a&c)^(b&c);
+      const t2 = (S0+maj)|0;
+      h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
+    }
+    [a,b,c,d,e,f,g,h].forEach((v,i)=>{ H[i] = (H[i]+v)|0; });
+  }
+  return H.map(v=>(v>>>0).toString(16).padStart(8,'0')).join('');
+}
+function isHostCode(x){ return sha256Hex(String(x)) === HOST_HASH; }
+let isHostDevice = false;
+try{
+  const stored = localStorage.getItem('md_is_host');
+  if(stored != null){
+    isHostDevice = stored === '1';
+  } else if(localStorage.getItem('md_role') === 'host'){
+    // migrate a device that had already set the old manual "Host" toggle
+    isHostDevice = true;
+    localStorage.setItem('md_is_host', '1');
+  }
+  // Opening the app via the secret host link grants (or re-grants) host
+  // access on this device, permanently, until it's explicitly stepped down.
+  const hashMatch = (window.location.hash||'').match(/[#&]host=([^&]+)/);
+  if(hashMatch && isHostCode(decodeURIComponent(hashMatch[1]))){
+    isHostDevice = true;
+    localStorage.setItem('md_is_host', '1');
+    // scrub the secret out of the visible URL so it doesn't linger in the
+    // address bar (e.g. if the screen is ever shared or the tab is bookmarked mid-secret)
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+}catch(e){}
+
+let showHistory = false;
+let showDatabase = false;
+let showAwards = false;      // the monthly awards board — open to every viewer, not just the host
+let showAwardsCard = false;  // the screenshot-friendly shareable summary, nested inside the awards modal
+let showLogMatch = false;
+let manualPickStage = 'a';   // which captain slot manual-picking is filling next
+let editingPlayerId = null;  // database row whose position/attribute editor is open
+let chemSelection = [];      // ids currently ticked in the chemistry-link builder
+let statsMonth = null;       // 'YYYY-MM' the leaderboard/awards are showing — defaults to the current month
+let addForm = {positions:['MID'], attributes:{}, unknown:false, star:false}; // draft state for the add-player form
+let guestForm = {name:'', positions:['MID']}; // draft state for the "add a guest for today" quick-add
+let resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false}; // draft match-result form
+let logDraft = null;         // draft state for "log a match played outside the app"
+let editingHistoryId = null; // history entry currently being edited, or null
+let historyEditDraft = null; // draft state for the history-edit form
+let pendingDeleteId = null;  // history entry awaiting a second tap to confirm deletion
+let copyFeedback = false;    // briefly true right after "copy team sheet" succeeds
+
+/* ---- id helpers ---- */
+function slugify(name){
+  let s = name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-+|-+$)/g,'');
+  return s || ('p' + Date.now());
+}
+function uniqueId(base, existingIds){
+  let id = base, n = 2;
+  while(existingIds.includes(id)){ id = base + '-' + n; n++; }
+  return id;
+}
+function esc(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+function cloneSquad(){ return JSON.parse(JSON.stringify(SQUAD)); }
+
+/* ---- the player database (SQUAD) ---- */
+function allPlayersArr(){
+  return SQUAD.players.concat(SQUAD.unrankedPlayers||[]).concat(SQUAD.guests||[]);
+}
+// The persistent roster only — players and unranked, never guests. Used
+// anywhere a guest shouldn't linger: roster management, the chemistry
+// picker, next time's match-day list.
+function rosterPlayersArr(){
+  return SQUAD.players.concat(SQUAD.unrankedPlayers||[]);
+}
+function allPlayerIds(){
+  return allPlayersArr().map(p=>p.id);
+}
+function findPlayer(id){
+  return allPlayersArr().find(p=>p.id===id);
+}
+function isGuest(id){
+  return (SQUAD.guests||[]).some(p=>p.id===id);
+}
+function playerName(id){
+  const p = findPlayer(id);
+  return p ? p.name : '(unknown)';
+}
+// Ability rank = index among KNOWN players (ascending, weakest first) in the
+// persistent database. A player with unknown ability isn't part of that
+// ordering — for balancing purposes we treat them as exactly average, so
+// they don't skew either team.
+function rankOf(id){
+  const idx = SQUAD.players.findIndex(p=>p.id===id);
+  if(idx>=0) return idx;
+  return SQUAD.players.length ? (SQUAD.players.length-1)/2 : 0;
+}
+function statsOf(id){
+  return Object.assign({played:0,wins:0,losses:0,draws:0,goals:0,assists:0}, (SQUAD.stats||{})[id]);
+}
+
+/* ---- positions & attributes ---- */
+const POSITIONS = {
+  GK:  {label:'GK',  full:'Goalkeeper', color:'#ffc53d'},
+  DEF: {label:'DEF', full:'Defender',   color:'#b18cf0'},
+  MID: {label:'MID', full:'Midfielder', color:'#4fd1c5'},
+  FWD: {label:'FWD', full:'Forward',    color:'#ff9f5a'}
+};
+const POSITION_ORDER = ['GK','DEF','MID','FWD'];
+
+const ATTRIBUTES = {
+  shooting:  {label:'Shooting'},
+  tackling:  {label:'Tackling'},
+  speed:     {label:'Speed'},
+  dribbling: {label:'Dribbling'},
+  stamina:   {label:'Stamina'},
+  passing:   {label:'Passing'},
+  game_iq:   {label:'Game knowledge'}
+};
+const ATTRIBUTE_ORDER = ['shooting','tackling','speed','dribbling','stamina','passing','game_iq'];
+
+// A player can hold more than one position — positionsOf always returns a
+// non-empty array (falls back to ['MID'] for old/blank data).
+function positionsOf(id){
+  const p = findPlayer(id);
+  const pos = (p && Array.isArray(p.positions) && p.positions.length) ? p.positions : ['MID'];
+  return pos.filter(x=>POSITIONS[x]);
+}
+// Attributes are a {key: level} map — level 1 = has it, level 2 = "+"
+// (exceptional). Reads old array-shaped data (from before levels existed)
+// as level 1 for everything, so nothing already saved gets lost.
+function attributesOf(id){
+  const p = findPlayer(id);
+  const raw = p && p.attributes;
+  if(!raw) return {};
+  if(Array.isArray(raw)){
+    const out = {}; raw.forEach(k=>{ if(ATTRIBUTES[k]) out[k]=1; }); return out;
+  }
+  const out = {};
+  Object.keys(raw).forEach(k=>{ if(ATTRIBUTES[k] && (raw[k]===1 || raw[k]===2)) out[k]=raw[k]; });
+  return out;
+}
+function attrChipLabel(attr, level){
+  return ATTRIBUTES[attr].label + (level===2 ? '+' : '');
+}
+// Counts toward every tagged position, so a GK/DEF player counts in both —
+// this is "position coverage", not a strict headcount split.
+function positionCounts(ids){
+  const c = {GK:0,DEF:0,MID:0,FWD:0};
+  ids.forEach(id=> positionsOf(id).forEach(pos=> c[pos]++));
+  return c;
+}
+function compositionLine(ids){
+  const c = positionCounts(ids);
+  return POSITION_ORDER.map(p=>`${c[p]} ${p}`).join(' · ');
+}
+function posBadges(id){
+  return positionsOf(id).map(pos=>{
+    const meta = POSITIONS[pos];
+    return `<span class="pos-badge" style="color:${meta.color}; border-color:${meta.color};">${meta.label}</span>`;
+  }).join(' ');
+}
+function attrChips(id){
+  const attrs = attributesOf(id);
+  const keys = Object.keys(attrs);
+  if(!keys.length) return '';
+  return `<div class="attr-row">${keys.map(k=>`<span class="attr-chip${attrs[k]===2?' attr-plus':''}">${attrChipLabel(k,attrs[k])}</span>`).join('')}</div>`;
+}
+function statsLine(id){
+  const s = statsOf(id);
+  if(!s.played) return '';
+  return `<div class="stats-line">${s.played} played · ${s.wins}W ${s.draws}D ${s.losses}L${s.goals?' · '+s.goals+' ⚽':''}</div>`;
+}
+function chemistryGroupOf(id){
+  return (SQUAD.chemistryGroups||[]).find(g=>g.includes(id)) || null;
+}
+function chemBadge(id){
+  const g = chemistryGroupOf(id);
+  if(!g || g.length<2) return '';
+  const mates = g.filter(x=>x!==id).map(playerName).join(', ');
+  return `<span class="pos-badge chem-badge" title="Plays well with: ${esc(mates)}">🔗</span>`;
+}
+
+/* ---- star players: a rare, huge quality gap over the rest of the squad ---- */
+function isStarPlayer(id){
+  const p = findPlayer(id);
+  return !!(p && p.star);
+}
+function starCount(ids){ return ids.filter(isStarPlayer).length; }
+function starBadge(id){
+  return isStarPlayer(id) ? `<span class="pos-badge star-badge" title="Star player">⭐</span>` : '';
+}
+
+/* ---- balanced, chemistry- and position-aware team splitting ---- */
+
+// Group a list of ids into "units" — a chemistry group (trimmed to just the
+// ids present in this list) stays together as one unit; anyone with no
+// group of their own is a unit of one.
+function buildChemistryUnits(ids){
+  const idSet = new Set(ids);
+  const seen = new Set();
+  const units = [];
+  ids.forEach(id=>{
+    if(seen.has(id)) return;
+    const g = chemistryGroupOf(id);
+    const unit = g ? g.filter(x=>idSet.has(x)) : [id];
+    unit.forEach(x=>seen.add(x));
+    units.push(unit);
+  });
+  return units;
+}
+function unitStats(unit){
+  let ability = 0, stars = 0;
+  const pos = {GK:0,DEF:0,MID:0,FWD:0};
+  unit.forEach(id=>{
+    ability += rankOf(id);
+    if(isStarPlayer(id)) stars++;
+    positionsOf(id).forEach(p=> pos[p]++);
+  });
+  return {ability, pos, stars, hasGk: pos.GK>0, hasStar: stars>0};
+}
+// Greedily assigns `ids` between two sides, starting from whatever each
+// side already holds (existingAIds/existingBIds) and never exceeding
+// capA/capB more players. Chemistry groups are kept together whenever
+// capacity allows; ability, position coverage AND star-player spread are
+// balanced against what each side already has. Units containing a
+// goalkeeper are placed first (a hard-ish priority), star units next —
+// a heavy penalty keeps two stars off the same side whenever capacity
+// allows it, the same way an uneven goalkeeper split is discouraged.
+function balancedAssign(ids, existingAIds, existingBIds, capA, capB){
+  // Shuffle first so ties in the sort below (equal priority units — same
+  // GK/star/size/ability profile) don't always resolve the same way, and
+  // add a small random jitter to genuinely close side-decisions further
+  // down. Without either of these the optimizer is fully deterministic —
+  // the exact bug that made "reshuffle" return the same split every time.
+  const units = buildChemistryUnits(shuffledCopy(ids))
+    .map(u=>({ids:u, stats:unitStats(u)}))
+    .sort((x,y)=>{
+      if(x.stats.hasGk !== y.stats.hasGk) return x.stats.hasGk ? -1 : 1;
+      if(x.stats.hasStar !== y.stats.hasStar) return x.stats.hasStar ? -1 : 1;
+      if(y.ids.length !== x.ids.length) return y.ids.length - x.ids.length;
+      return (y.stats.ability/y.ids.length) - (x.stats.ability/x.ids.length);
+    });
+
+  let abilityA=0, abilityB=0, starsA=0, starsB=0;
+  const posA={GK:0,DEF:0,MID:0,FWD:0}, posB={GK:0,DEF:0,MID:0,FWD:0};
+  existingAIds.forEach(id=>{ abilityA+=rankOf(id); if(isStarPlayer(id)) starsA++; positionsOf(id).forEach(p=>posA[p]++); });
+  existingBIds.forEach(id=>{ abilityB+=rankOf(id); if(isStarPlayer(id)) starsB++; positionsOf(id).forEach(p=>posB[p]++); });
+  let remA = capA, remB = capB;
+  const outA=[], outB=[];
+
+  function place(id, side){
+    if(side==='A'){ outA.push(id); remA--; abilityA+=rankOf(id); if(isStarPlayer(id)) starsA++; positionsOf(id).forEach(p=>posA[p]++); }
+    else { outB.push(id); remB--; abilityB+=rankOf(id); if(isStarPlayer(id)) starsB++; positionsOf(id).forEach(p=>posB[p]++); }
+  }
+
+  units.forEach(({ids:unit, stats})=>{
+    const fitsA = unit.length<=remA, fitsB = unit.length<=remB;
+    let side;
+    if(fitsA && fitsB){
+      let penA=0, penB=0;
+      POSITION_ORDER.forEach(p=>{
+        penA += Math.abs((posA[p]+stats.pos[p]) - posB[p]);
+        penB += Math.abs(posA[p] - (posB[p]+stats.pos[p]));
+      });
+      const starPenA = Math.abs((starsA+stats.stars) - starsB);
+      const starPenB = Math.abs(starsA - (starsB+stats.stars));
+      const abA = Math.abs((abilityA+stats.ability) - abilityB);
+      const abB = Math.abs(abilityA - (abilityB+stats.ability));
+      // A little noise so near-equal options can go either way on a
+      // reshuffle; a real imbalance (position/star/ability gap far bigger
+      // than this) still always resolves to the fairer side.
+      const jitter = (Math.random()-0.5)*1.6;
+      side = (penA*3 + starPenA*8 + abA*0.5 + jitter) <= (penB*3 + starPenB*8 + abB*0.5) ? 'A' : 'B';
+    } else if(fitsA){ side = 'A'; }
+    else if(fitsB){ side = 'B'; }
+    else {
+      // neither side has room for the whole unit — split it as a last
+      // resort so the rosters still fill; chemistry loses to capacity.
+      unit.forEach(id=> place(id, remA>0 ? 'A' : 'B'));
+      return;
+    }
+    unit.forEach(id=> place(id, side));
+  });
+
+  return {sideAIds: outA, sideBIds: outB};
+}
+
+/* ============================= Persistence layer ============================= */
+
+// Every persisted document lives under the active squad: squads/<id> holds
+// just {name, createdAt} (cheap to list); squads/<id>/state/match and
+// squads/<id>/state/roster are this squad's S and SQUAD; squads/<id>/history
+// is its match log. app/current is the one shared pointer saying which
+// squad every device should be looking at.
+function squadPath(sub){ return 'squads/' + currentSquadId + '/' + sub; }
+
+function saveState(patch){
+  const next = Object.assign({}, S, patch, {updatedAt:new Date().toISOString()});
+  if(db){
+    db.doc(squadPath('state/match')).set(next).catch(()=>{ /* best effort */ });
+  }else{
+    S = next;
+    localCommit();
+  }
+}
+
+function saveSquadDoc(next){
+  if(db){
+    db.doc(squadPath('state/roster')).set(next).catch(()=>{});
+  }else{
+    SQUAD = next;
+    localCommit();
+  }
+}
+
+// entry = {date, format, mode, teamA, teamB, teamAIds, teamBIds, subs, subIds}
+// Returns the new doc's id synchronously (minted client-side) so the
+// match-result form can target an update to this same entry later.
+function addToHistory(entry){
+  if(db){
+    const ref = db.collection(squadPath('history')).doc();
+    ref.set(entry).catch(()=>{});
+    return ref.id;
+  }else{
+    const id = 'local-' + Date.now() + '-' + Math.floor(Math.random()*1000);
+    HISTORY = [Object.assign({id}, entry)].concat(HISTORY).slice(0,200);
+    localCommit();
+    return id;
+  }
+}
+function updateHistoryResult(id, resultData){
+  if(!id) return;
+  if(db){
+    db.doc(squadPath('history/'+id)).update(resultData).catch(()=>{});
+  }else{
+    HISTORY = HISTORY.map(h=> h.id===id ? Object.assign({}, h, resultData) : h);
+    localCommit();
+  }
+}
+function deleteHistoryDoc(id){
+  if(!id) return;
+  if(db){
+    db.doc(squadPath('history/'+id)).delete().catch(()=>{});
+  }else{
+    HISTORY = HISTORY.filter(h=>h.id!==id);
+    localCommit();
+  }
+}
+
+/* ---- squad management (create / switch / rename / delete) ---- */
+
+function loadLocalStore(){
+  try{ const raw = localStorage.getItem('md_local_v2'); if(raw) return JSON.parse(raw); }catch(e){}
+  return null;
+}
+function saveLocalStore(){ try{ localStorage.setItem('md_local_v2', JSON.stringify(LOCAL)); }catch(e){} }
+function defaultLocalStore(){
+  const id = 'local-default';
+  return {
+    currentSquadId: id,
+    squads: [{id, name:'My Squad', createdAt:new Date().toISOString()}],
+    data: { [id]: { squad: defaultSquad(), state: defaultState(), history: [] } }
+  };
+}
+// Writes the in-memory S/SQUAD/HISTORY back into LOCAL and persists —
+// the no-db equivalent of a db write landing and the snapshot firing.
+function localCommit(){
+  LOCAL.data[currentSquadId] = { squad: SQUAD, state: S, history: HISTORY };
+  saveLocalStore();
+  render();
+}
+
+function subscribeToSquad(id){
+  rosterLoaded = false;
+  if(unsubRoster) unsubRoster();
+  if(unsubMatch) unsubMatch();
+  if(unsubHistory) unsubHistory();
+  unsubRoster = db.doc('squads/'+id+'/state/roster').onSnapshot(snap=>{
+    SQUAD = snap.exists ? Object.assign(defaultSquad(), snap.data()) : defaultSquad();
+    ensureRankBaselineFresh();
+    rosterLoaded = true;
+    render();
+  }, ()=>{ rosterLoaded = true; render(); });
+  unsubMatch = db.doc('squads/'+id+'/state/match').onSnapshot(snap=>{
+    S = snap.exists ? Object.assign(defaultState(), snap.data()) : defaultState();
+    dbReady = true;
+    render();
+  }, ()=>{ dbReady = true; render(); });
+  unsubHistory = db.collection('squads/'+id+'/history').orderBy('date','desc').limit(200).onSnapshot(qsnap=>{
+    HISTORY = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+    render();
+  }, ()=>{});
+}
+
+// First-ever load of the new multi-squad structure: brings this artifact's
+// pre-existing single squad/roster + state/current + history into a real
+// squad named "My Squad" (skipped, harmlessly, if there was none), then
+// points app/current at it. Best-effort — if two devices race into this on
+// the very first load post-update, worst case is two starter squads, and
+// deleteSquad can clean that up.
+async function migrateOrCreateDefaultSquad(){
+  if(migratingSquad) return;
+  migratingSquad = true;
+  try{
+    const [legacyRoster, legacyState] = await Promise.all([
+      db.doc('squad/roster').get(), db.doc('state/current').get()
+    ]);
+    const legacyData = legacyRoster.exists ? legacyRoster.data() : null;
+    const hasLegacy = !!(legacyData && (((legacyData.players)||[]).length || ((legacyData.unrankedPlayers)||[]).length));
+    const ref = db.collection('squads').doc();
+    await ref.set({name:'My Squad', createdAt:new Date().toISOString()});
+    await db.doc('squads/'+ref.id+'/state/roster').set(Object.assign(defaultSquad(), hasLegacy ? legacyData : {}));
+    const legacyStateData = legacyState.exists ? legacyState.data() : {};
+    await db.doc('squads/'+ref.id+'/state/match').set(Object.assign(defaultState(), legacyStateData));
+    if(hasLegacy){
+      const legacyHistory = await db.collection('history').orderBy('date','desc').limit(50).get();
+      for(const d of legacyHistory.docs){
+        await db.doc('squads/'+ref.id+'/history/'+d.id).set(d.data());
+      }
+    }
+    await db.doc('app/current').set({squadId: ref.id});
+  }catch(e){ /* best effort — worst case the picker just stays empty until retried */ }
+  migratingSquad = false;
+}
+
+function createSquad(name){
+  name = (name||'').trim() || 'New squad';
+  if(db){
+    const ref = db.collection('squads').doc();
+    ref.set({name, createdAt:new Date().toISOString()}).catch(()=>{});
+    db.doc('squads/'+ref.id+'/state/roster').set(defaultSquad()).catch(()=>{});
+    db.doc('squads/'+ref.id+'/state/match').set(defaultState()).catch(()=>{});
+    switchSquad(ref.id);
+  }else{
+    const id = 'local-' + Date.now();
+    LOCAL.squads = LOCAL.squads.concat([{id, name, createdAt:new Date().toISOString()}]);
+    LOCAL.data[id] = { squad: defaultSquad(), state: defaultState(), history: [] };
+    squadsList = LOCAL.squads;
+    switchSquad(id);
+  }
+  newSquadName = '';
+}
+function switchSquad(id){
+  if(!id || id===currentSquadId) return;
+  if(db){
+    db.doc('app/current').set({squadId:id}).catch(()=>{});
+  }else{
+    LOCAL.currentSquadId = id;
+    currentSquadId = id;
+    const rec = LOCAL.data[id] || { squad: defaultSquad(), state: defaultState(), history: [] };
+    SQUAD = rec.squad; S = rec.state; HISTORY = rec.history;
+    ensureRankBaselineFresh();
+    saveLocalStore();
+    render();
+  }
+}
+function renameSquad(id, name){
+  name = (name||'').trim();
+  if(!name) return;
+  if(db){
+    db.doc('squads/'+id).update({name}).catch(()=>{});
+  }else{
+    const sq = LOCAL.squads.find(s=>s.id===id);
+    if(sq){ sq.name = name; squadsList = LOCAL.squads; saveLocalStore(); render(); }
+  }
+}
+// Removes a squad from the picker. Its documents are left in place (the
+// store doesn't cascade-delete nested paths) — harmless, just unreachable.
+function deleteSquad(id){
+  if(squadsList.length<=1) return; // always keep at least one squad to switch into
+  if(db){
+    db.doc('squads/'+id).delete().catch(()=>{});
+    if(id===currentSquadId){
+      const next = squadsList.find(s=>s.id!==id);
+      if(next) switchSquad(next.id);
+    }
+  }else{
+    LOCAL.squads = LOCAL.squads.filter(s=>s.id!==id);
+    delete LOCAL.data[id];
+    squadsList = LOCAL.squads;
+    if(id===currentSquadId){ switchSquad(LOCAL.squads[0].id); }
+    else { saveLocalStore(); render(); }
+  }
+}
+function toggleSquadManager(){ showSquadManager = !showSquadManager; render(); }
+
+/* ---- shared live database (Firebase Firestore) ----
+   Paste your Firebase web-app config between the braces below (it is not a
+   secret; Firebase web configs are meant to be public). While it is left as
+   null the app simply runs in per-phone "solo" mode. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAPOz_N3v_I8rEIEeFUzsMyVlQnfrcAVTk",
+  authDomain: "matchday-draft.firebaseapp.com",
+  projectId: "matchday-draft",
+  storageBucket: "matchday-draft.firebasestorage.app",
+  messagingSenderId: "411510696810",
+  appId: "1:411510696810:web:0a114e74ae835b306c5313"
+};
+
+// Firestore refuses arrays directly inside arrays (chemistry groups are
+// arrays of arrays) and refuses `undefined` — so wrap/strip on the way in and
+// unwrap on the way out. Everything else round-trips unchanged.
+function fsEncode(v){
+  if(Array.isArray(v)) return v.map(x=> Array.isArray(x) ? {__arr: fsEncode(x)} : fsEncode(x));
+  if(v && typeof v==='object'){
+    const o = {};
+    Object.keys(v).forEach(k=>{ if(v[k]!==undefined) o[k] = fsEncode(v[k]); });
+    return o;
+  }
+  return v;
+}
+function fsDecode(v){
+  if(Array.isArray(v)) return v.map(fsDecode);
+  if(v && typeof v==='object'){
+    const keys = Object.keys(v);
+    if(keys.length===1 && keys[0]==='__arr' && Array.isArray(v.__arr)) return v.__arr.map(fsDecode);
+    const o = {};
+    keys.forEach(k=>{ o[k] = fsDecode(v[k]); });
+    return o;
+  }
+  return v;
+}
+function fsWrapDocSnap(s){
+  return { id: s.id, exists: s.exists, data: ()=> fsDecode(s.data()) };
+}
+function fsWrapQuerySnap(q){
+  return { docs: q.docs.map(fsWrapDocSnap) };
+}
+function fsWrapQuery(q){
+  return {
+    orderBy: (f,d)=> fsWrapQuery(q.orderBy(f,d)),
+    limit: n=> fsWrapQuery(q.limit(n)),
+    get: ()=> q.get().then(fsWrapQuerySnap),
+    onSnapshot: (ok,err)=> q.onSnapshot(s=>ok(fsWrapQuerySnap(s)), err)
+  };
+}
+function fsWrapDoc(r){
+  return {
+    id: r.id,
+    get: ()=> r.get().then(fsWrapDocSnap),
+    set: d=> r.set(fsEncode(d)),
+    update: d=> r.update(fsEncode(d)),
+    delete: ()=> r.delete(),
+    onSnapshot: (ok,err)=> r.onSnapshot(s=>ok(fsWrapDocSnap(s)), err)
+  };
+}
+function initFirebaseDb(){
+  try{
+    if(!FIREBASE_CONFIG || !window.firebase) return null;
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const fs = firebase.firestore();
+    return {
+      doc: p=> fsWrapDoc(fs.doc(p)),
+      collection: p=>{
+        const c = fs.collection(p);
+        const q = fsWrapQuery(c);
+        q.doc = id=> fsWrapDoc(id ? c.doc(id) : c.doc());
+        return q;
+      }
+    };
+  }catch(e){ return null; }
+}
+
+async function initDb(){
+  try{
+    if(window.claude && window.claude.use){
+      db = await window.claude.use('db');
+    }
+  }catch(e){ db = null; }
+  if(!db) db = initFirebaseDb();
+
+  if(!db){
+    LOCAL = loadLocalStore() || defaultLocalStore();
+    currentSquadId = LOCAL.currentSquadId;
+    squadsList = LOCAL.squads;
+    const rec = LOCAL.data[currentSquadId] || { squad: defaultSquad(), state: defaultState(), history: [] };
+    SQUAD = rec.squad; S = rec.state; HISTORY = rec.history;
+    ensureRankBaselineFresh();
+    dbReady = true;
+    rosterLoaded = true;
+    render();
+    return;
+  }
+  setTimeout(()=>{ if(!(dbReady && rosterLoaded)){ slowConnect = true; render(); } }, 10000);
+
+  db.collection('squads').orderBy('createdAt','asc').onSnapshot(qsnap=>{
+    squadsList = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+    render();
+  }, ()=>{});
+
+  db.doc('app/current').onSnapshot(snap=>{
+    const id = snap.exists ? snap.data().squadId : null;
+    if(id && id!==currentSquadId){
+      currentSquadId = id;
+      subscribeToSquad(id);
+    } else if(!id){
+      dbReady = true;
+      migrateOrCreateDefaultSquad();
+    }
+    render();
+  }, ()=>{ dbReady = true; render(); });
+}
+
+/* ============================= Match-making logic ============================= */
+
+function shuffledCopy(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+// How lopsided a player's recent appearances have been toward the bench
+// rather than the pitch — higher means "more overdue for a game". Only
+// looks at matches they were actually part of (playing OR benched), most
+// recent first, so someone who just joined isn't penalized for the weeks
+// before they existed.
+function recentBenchBalance(id, lookback){
+  lookback = lookback || 8;
+  let benched = 0, played = 0, seen = 0;
+  for(let i=0; i<HISTORY.length && seen<lookback; i++){
+    const h = HISTORY[i];
+    const inBench = (h.subIds||[]).includes(id);
+    const inPlay = (h.teamAIds||[]).includes(id) || (h.teamBIds||[]).includes(id);
+    if(!inBench && !inPlay) continue;
+    seen++;
+    if(inBench) benched++; else played++;
+  }
+  return benched - played;
+}
+
+// Decide, once, which of today's selected players are "in the match" vs
+// bench, when more people showed up than two full teams need. Keeps up to
+// two goalkeepers in the playing pool when available, so a random split
+// still has a keeper for each side, and gives priority to whoever has been
+// riding the bench most recently rather than picking purely at random.
+function computePlayingPool(){
+  const n = S.format;
+  // one extra spot when the host confirmed an uneven-teams extra player
+  const need = n*2 + (S.oddSide ? 1 : 0);
+  const ids = (S.selectedIds||[]).slice();
+  if(ids.length <= need){
+    return {playingIds: ids, subIds: []};
+  }
+  const byFatigueDesc = (x,y) => recentBenchBalance(y) - recentBenchBalance(x);
+  const gks = shuffledCopy(ids.filter(id=>positionsOf(id).includes('GK'))).sort(byFatigueDesc);
+  const others = shuffledCopy(ids.filter(id=>!positionsOf(id).includes('GK'))).sort(byFatigueDesc);
+  const guaranteedGks = gks.slice(0, Math.min(2, need));
+  const rest = shuffledCopy(gks.slice(guaranteedGks.length).concat(others))
+    .sort(byFatigueDesc)
+    .slice(0, Math.max(0, need - guaranteedGks.length));
+  const playingIds = shuffledCopy(guaranteedGks.concat(rest));
+  const playingSet = new Set(playingIds);
+  const subIds = ids.filter(id=>!playingSet.has(id));
+  return {playingIds, subIds};
+}
+
+// Balance the playing pool into two teams by ability, position AND
+// chemistry — see balancedAssign above. Fresh split, so both sides start
+// empty with a full team's worth of capacity each.
+function computeRandomSplit(){
+  const n = S.format;
+  const capA = n + (S.oddSide==='a' ? 1 : 0);
+  const capB = n + (S.oddSide==='b' ? 1 : 0);
+  const {sideAIds, sideBIds} = balancedAssign(S.playingIds, [], [], capA, capB);
+  return {teamA: sideAIds, teamB: sideBIds, subs: S.subIds.slice()};
+}
+
+function teamFull(team, n){ return team.ids.length >= n; }
+
+// After a sale, if exactly one team is now full, hand every remaining
+// un-auctioned player to the other team for free until it's full too
+// (or players run out) — this is the "ran out of budget" catch-up rule.
+// capA/capB are usually both S.format, but differ by one when an uneven
+// "extra player" match was confirmed at setup.
+function runAutoFill(auction, capA, capB){
+  const aFull = teamFull(auction.teamA, capA);
+  const bFull = teamFull(auction.teamB, capB);
+  if(aFull === bFull) return auction; // both full, both open, or roster already exhausted below
+
+  const shortTeam = aFull ? auction.teamB : auction.teamA;
+  const shortCap = aFull ? capB : capA;
+  const shortKey = aFull ? 'teamB' : 'teamA';
+  while(auction.index < auction.order.length && shortTeam.ids.length < shortCap){
+    const pid = auction.order[auction.index];
+    shortTeam.ids.push(pid);
+    auction.log.push({playerId:pid, team:shortKey==='teamA'?'a':'b', price:0, free:true});
+    auction.index++;
+  }
+  return auction;
+}
+
+function finishAuctionIfDone(auction, capA, capB){
+  const bothFull = teamFull(auction.teamA,capA) && teamFull(auction.teamB,capB);
+  const exhausted = auction.index >= auction.order.length;
+  if(bothFull || exhausted){ auction.done = true; }
+  return auction;
+}
+
+/* ============================= Database actions ============================= */
+
+// Ability rank normally only moves for a reason: a manual edit (the ▲▼
+// arrows, or ranking someone for the first time) or an automatic nudge after
+// a win. The automatic nudges are meant to reflect *this month's* form —
+// rankBaseline is "the order as it was last set on purpose", and every
+// manual edit updates it immediately. At the start of a new calendar month,
+// applyMonthlyRankReset snaps the live order back to that baseline, undoing
+// whatever the automatic win-nudges drifted it to, while anything the host
+// deliberately changed stays exactly as they left it.
+function syncRankBaseline(next){
+  next.rankBaseline = next.players.map(p=>p.id);
+  next.rankBaselineMonth = currentYearMonth();
+  return next;
+}
+function applyMonthlyRankReset(next){
+  const month = currentYearMonth();
+  if(next.rankBaselineMonth === month) return next; // already current
+  if(!next.rankBaseline || !next.rankBaseline.length){
+    // never tracked a baseline before (older data) — adopt today's order as
+    // the starting point rather than reverting to nothing
+    return syncRankBaseline(next);
+  }
+  const byId = {};
+  next.players.forEach(p=> byId[p.id]=p);
+  const reverted = [];
+  next.rankBaseline.forEach(id=>{ if(byId[id]){ reverted.push(byId[id]); delete byId[id]; } });
+  // anyone current the baseline doesn't know about (graduated from unranked
+  // mid-month, or added after the baseline was captured) — keep them, in
+  // their current relative order, appended at the end
+  next.players.forEach(p=>{ if(byId[p.id]){ reverted.push(p); delete byId[p.id]; } });
+  next.players = reverted;
+  return syncRankBaseline(next);
+}
+// Cheap to call on every squad load — only actually rewrites anything the
+// first time it notices the calendar month has moved on.
+function ensureRankBaselineFresh(){
+  if(SQUAD.rankBaselineMonth === currentYearMonth()) return;
+  saveSquadDoc(applyMonthlyRankReset(cloneSquad()));
+}
+
+function addPlayer(name, positions, attributes, unknown, star){
+  name = name.trim();
+  if(!name) return;
+  positions = (positions||[]).filter(p=>POSITIONS[p]);
+  if(!positions.length) positions = ['MID'];
+  const cleanAttrs = {};
+  Object.keys(attributes||{}).forEach(k=>{
+    if(ATTRIBUTES[k] && (attributes[k]===1 || attributes[k]===2)) cleanAttrs[k]=attributes[k];
+  });
+  const existingIds = allPlayerIds();
+  const id = uniqueId(slugify(name), existingIds);
+  const player = {id, name, positions, attributes:cleanAttrs, star: !!star};
+  const next = cloneSquad();
+  if(unknown) next.unrankedPlayers = (next.unrankedPlayers||[]).concat([player]);
+  else { next.players = next.players.concat([player]); syncRankBaseline(next); }
+  saveSquadDoc(next);
+  saveState({selectedIds: (S.selectedIds||[]).concat([id])});
+}
+
+// A one-off fill-in for today only. Counts toward today's balancing (treated
+// like any other unranked/average-ability player) and today's history entry,
+// but lives in SQUAD.guests — never the ranked/unranked roster — so it never
+// shows up in roster management, next time's match-day picker, the
+// chemistry-link builder, or the monthly awards board. Open to anyone, same
+// as ticking your own name in the picker.
+function addGuestPlayer(name, positions){
+  name = (name||'').trim();
+  if(!name) return;
+  positions = (positions||[]).filter(p=>POSITIONS[p]);
+  if(!positions.length) positions = ['MID'];
+  const id = uniqueId(slugify(name), allPlayerIds());
+  const guest = {id, name, positions, guest:true};
+  const next = cloneSquad();
+  next.guests = (next.guests||[]).concat([guest]);
+  saveSquadDoc(next);
+  saveState({selectedIds: (S.selectedIds||[]).concat([id])});
+}
+function toggleGuestPosition(pos, btn){
+  const has = guestForm.positions.includes(pos);
+  if(has && guestForm.positions.length<=1) return; // always keep at least one
+  guestForm.positions = has ? guestForm.positions.filter(x=>x!==pos) : guestForm.positions.concat([pos]);
+  if(btn) btn.classList.toggle('active');
+}
+function submitGuestPlayer(){
+  if(!isHost()) return;
+  addGuestPlayer(guestForm.name, guestForm.positions);
+  guestForm = {name:'', positions:['MID']};
+  render();
+}
+
+// Bring a not-yet-ranked player into the ability ordering, inserted at the
+// middle for now — nudge them up/down with the arrows once you've actually
+// seen them play (or let a couple of wins do it automatically).
+function rankPlayerNow(id){
+  const next = cloneSquad();
+  const p = (next.unrankedPlayers||[]).find(x=>x.id===id);
+  if(!p) return;
+  next.unrankedPlayers = next.unrankedPlayers.filter(x=>x.id!==id);
+  next.players.splice(Math.round(next.players.length/2), 0, p);
+  syncRankBaseline(next);
+  saveSquadDoc(next);
+}
+
+function toggleEditPanel(id){
+  editingPlayerId = (editingPlayerId===id) ? null : id;
+  render();
+}
+function togglePlayerPosition(id, pos){
+  const flip = arr => arr.map(p=>{
+    if(p.id!==id) return p;
+    const positions = p.positions||[];
+    const has = positions.includes(pos);
+    if(has && positions.length<=1) return p; // always keep at least one
+    return Object.assign({}, p, {positions: has ? positions.filter(x=>x!==pos) : positions.concat([pos])});
+  });
+  const next = cloneSquad();
+  next.players = flip(next.players);
+  next.unrankedPlayers = flip(next.unrankedPlayers||[]);
+  saveSquadDoc(next);
+}
+// Cycles a player's attribute through off → normal → "+" (exceptional) → off.
+function togglePlayerAttribute(id, attr){
+  const cycle = arr => arr.map(p=>{
+    if(p.id!==id) return p;
+    const cur = attributesOf(p.id)[attr] || 0;
+    const next = (cur+1) % 3;
+    const attrs = Object.assign({}, attributesOf(p.id));
+    if(next===0) delete attrs[attr]; else attrs[attr]=next;
+    return Object.assign({}, p, {attributes:attrs});
+  });
+  const next = cloneSquad();
+  next.players = cycle(next.players);
+  next.unrankedPlayers = cycle(next.unrankedPlayers||[]);
+  saveSquadDoc(next);
+}
+function togglePlayerStar(id){
+  const flip = arr => arr.map(p=> p.id===id ? Object.assign({}, p, {star: !p.star}) : p);
+  const next = cloneSquad();
+  next.players = flip(next.players);
+  next.unrankedPlayers = flip(next.unrankedPlayers||[]);
+  saveSquadDoc(next);
+}
+// Long-term unavailable (injured, traveling, etc.) — hidden from the
+// match-day picker without touching their stats/history/rank. Distinct from
+// just not ticking them for one match: this persists week to week until
+// flipped back.
+function toggleUnavailable(id){
+  const flip = arr => arr.map(p=> p.id===id ? Object.assign({}, p, {unavailable: !p.unavailable}) : p);
+  const next = cloneSquad();
+  next.players = flip(next.players);
+  next.unrankedPlayers = flip(next.unrankedPlayers||[]);
+  saveSquadDoc(next);
+}
+
+function removePlayer(id){
+  const next = cloneSquad();
+  next.players = next.players.filter(p=>p.id!==id);
+  next.unrankedPlayers = (next.unrankedPlayers||[]).filter(p=>p.id!==id);
+  next.chemistryGroups = (next.chemistryGroups||[]).map(g=>g.filter(x=>x!==id)).filter(g=>g.length>1);
+  syncRankBaseline(next);
+  saveSquadDoc(next);
+  saveState({selectedIds: (S.selectedIds||[]).filter(x=>x!==id)});
+}
+
+function movePlayer(id, dir){
+  const next = cloneSquad();
+  const idx = next.players.findIndex(p=>p.id===id);
+  const j = idx+dir;
+  if(idx<0 || j<0 || j>=next.players.length) return;
+  [next.players[idx],next.players[j]] = [next.players[j],next.players[idx]];
+  syncRankBaseline(next);
+  saveSquadDoc(next);
+}
+
+/* ---- add-player form (kept local/imperative so typing never loses focus) ---- */
+function autofillFromSquad(name){
+  const match = allPlayersArr().find(p=>p.name.toLowerCase()===name.trim().toLowerCase());
+  if(!match) return;
+  addForm.positions = (match.positions && match.positions.length) ? match.positions.slice() : ['MID'];
+  addForm.attributes = {};
+  const raw = match.attributes;
+  if(Array.isArray(raw)) raw.forEach(k=>{ if(ATTRIBUTES[k]) addForm.attributes[k]=1; });
+  else if(raw) Object.keys(raw).forEach(k=>{ if(ATTRIBUTES[k]) addForm.attributes[k]=raw[k]; });
+
+  document.querySelectorAll('.add-pos-chip').forEach(btn=>{
+    btn.classList.toggle('active', addForm.positions.includes(btn.dataset.pos));
+  });
+  document.querySelectorAll('.add-attr-chip').forEach(btn=>{
+    const lvl = addForm.attributes[btn.dataset.attr]||0;
+    btn.classList.toggle('active', lvl>0);
+    btn.classList.toggle('plus', lvl===2);
+    btn.textContent = attrChipLabel(btn.dataset.attr, lvl);
+  });
+}
+function toggleAddPosition(pos, btn){
+  const i = addForm.positions.indexOf(pos);
+  if(i>=0){
+    if(addForm.positions.length>1){ addForm.positions.splice(i,1); btn.classList.remove('active'); }
+  }else{
+    addForm.positions.push(pos); btn.classList.add('active');
+  }
+}
+function cycleAddAttribute(attr, btn){
+  const cur = addForm.attributes[attr]||0;
+  const next = (cur+1) % 3;
+  if(next===0) delete addForm.attributes[attr]; else addForm.attributes[attr]=next;
+  btn.classList.toggle('active', next>0);
+  btn.classList.toggle('plus', next===2);
+  btn.textContent = attrChipLabel(attr, next);
+}
+function toggleAddUnknown(btn){
+  addForm.unknown = !addForm.unknown;
+  btn.classList.toggle('active', addForm.unknown);
+}
+function toggleAddStar(btn){
+  addForm.star = !addForm.star;
+  btn.classList.toggle('active', addForm.star);
+}
+function submitAddPlayer(){
+  const inp = document.getElementById('addNameInput');
+  if(!inp || !inp.value.trim()) return;
+  addPlayer(inp.value, addForm.positions, addForm.attributes, addForm.unknown, addForm.star);
+  inp.value = '';
+  addForm = {positions:['MID'], attributes:{}, unknown:false, star:false};
+  inp.focus();
+}
+
+/* ---- chemistry links ---- */
+function toggleChemSelect(id){
+  const i = chemSelection.indexOf(id);
+  if(i>=0) chemSelection.splice(i,1); else chemSelection.push(id);
+  render();
+}
+function mergeChemistry(groups, ids){
+  let merged = ids.slice();
+  const remaining = [];
+  groups.forEach(g=>{
+    if(g.some(id=>merged.includes(id))) merged = Array.from(new Set(merged.concat(g)));
+    else remaining.push(g);
+  });
+  remaining.push(merged);
+  return remaining;
+}
+function linkChemistry(){
+  if(chemSelection.length<2) return;
+  const next = cloneSquad();
+  next.chemistryGroups = mergeChemistry(next.chemistryGroups||[], chemSelection.slice());
+  chemSelection = [];
+  saveSquadDoc(next);
+}
+function unlinkChemistry(idx){
+  const next = cloneSquad();
+  next.chemistryGroups = (next.chemistryGroups||[]).slice();
+  next.chemistryGroups.splice(idx,1);
+  saveSquadDoc(next);
+}
+
+/* ============================= Match-flow actions ============================= */
+
+function setFormat(n){
+  // changing the format changes what "exactly enough" even means, so any
+  // earlier answer to the "is there an extra player" prompt no longer applies
+  saveState({format:n, oddSide:null, extraConfirmedEven:false});
+}
+function confirmEvenTeams(){ saveState({extraConfirmedEven:true}); }
+function confirmExtraPlayer(){ saveState({oddSide: Math.random()<0.5 ? 'a' : 'b'}); }
+function bumpFormatForExtra(){ setFormat(S.format+1); }
+
+function toggleSelected(id){
+  if(!isHost() && id !== getMyPlayerId()) return; // players can only tick themselves in or out
+  const sel = S.selectedIds||[];
+  saveState({selectedIds: sel.includes(id) ? sel.filter(x=>x!==id) : sel.concat([id])});
+}
+
+function goToMode(){
+  const pool = computePlayingPool();
+  saveState(Object.assign({phase:'mode'}, pool));
+}
+
+function backToSetup(){
+  saveState({phase:'setup', mode:null, randomResult:null, captains:{a:null,b:null},
+    captainPickMode:null, auction:null, playingIds:null, subIds:null});
+}
+
+function chooseMode(mode){
+  if(mode==='random'){
+    saveState({mode:'random', phase:'random', randomResult: computeRandomSplit()});
+  }else{
+    saveState({mode:'draft', phase:'captains', captainPickMode:null, captains:{a:null,b:null}});
+  }
+}
+
+function reshuffleRandom(){
+  saveState({randomResult: computeRandomSplit()});
+}
+
+function confirmRandom(){
+  const r = S.randomResult;
+  resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false};
+  const id = addToHistory({
+    date:new Date().toISOString(),
+    format:S.format,
+    mode:'random',
+    teamA:{players:r.teamA.map(playerName)}, teamAIds:r.teamA,
+    teamB:{players:r.teamB.map(playerName)}, teamBIds:r.teamB,
+    subs:r.subs.map(playerName), subIds:r.subs
+  });
+  saveState({phase:'complete', lastHistoryId:id});
+}
+
+function setCaptainPickMode(m){
+  saveState({captainPickMode:m, captains:{a:null,b:null}});
+  manualPickStage = 'a';
+}
+
+function randomizeCaptains(){
+  const pool = shuffledCopy(S.playingIds);
+  saveState({captains:{a:pool[0], b:pool[1]}});
+}
+
+function manualPick(id){
+  const caps = Object.assign({}, S.captains);
+  if(caps.a===id || caps.b===id) return;
+  if(!caps.a){ caps.a = id; manualPickStage = 'b'; }
+  else if(!caps.b){ caps.b = id; manualPickStage = 'done'; }
+  saveState({captains:caps});
+}
+
+function resetCaptains(){
+  manualPickStage = 'a';
+  saveState({captains:{a:null,b:null}});
+}
+
+function goToBudget(){
+  saveState({phase:'budget'});
+}
+
+function startAuction(budget, basePrice, increment){
+  const order = S.playingIds
+    .filter(id=> id!==S.captains.a && id!==S.captains.b)
+    .sort((x,y)=> rankOf(y)-rankOf(x));
+  const auction = {
+    order, index:0,
+    currentBid: basePrice, leader:null, passesInARow:0,
+    openToggle:true, turn:'a',
+    teamA:{ids:[S.captains.a], budget}, teamB:{ids:[S.captains.b], budget},
+    // per-team roster size — usually both S.format, but one side carries the
+    // extra player when the host confirmed an odd headcount at setup
+    capA: S.format + (S.oddSide==='a' ? 1 : 0),
+    capB: S.format + (S.oddSide==='b' ? 1 : 0),
+    log:[], done:false, savedToHistory:false
+  };
+  nextPlayerSetup(auction, basePrice); // seed the correct opening turn for player #1
+  saveState({phase:'auction', budget, basePrice, increment, auction});
+}
+
+function nextPlayerSetup(auction, basePrice){
+  auction.currentBid = basePrice;
+  auction.leader = null;
+  auction.passesInARow = 0;
+  auction.turn = auction.openToggle ? 'a' : 'b';
+  auction.openToggle = !auction.openToggle;
+  return auction;
+}
+
+function auctionBid(team){
+  const a = JSON.parse(JSON.stringify(S.auction));
+  if(a.done || a.turn!==team) return;
+  const teamObj = team==='a' ? a.teamA : a.teamB;
+  if(teamObj.budget < a.currentBid) return;
+  a.leader = team;
+  a.passesInARow = 0;
+  a.turn = team==='a' ? 'b' : 'a';
+  // price for the *next* raise
+  a.pendingLeaderPrice = a.currentBid;
+  a.currentBid = a.currentBid + S.increment;
+  saveState({auction:a});
+}
+
+function auctionPass(team){
+  const a = JSON.parse(JSON.stringify(S.auction));
+  if(a.done || a.turn!==team) return;
+  // fall back to S.format for an auction started before capA/capB existed
+  if(a.capA==null) a.capA = S.format;
+  if(a.capB==null) a.capB = S.format;
+
+  if(a.leader){
+    // sell to the leader at the price they locked in
+    const winner = a.leader;
+    const price = a.pendingLeaderPrice != null ? a.pendingLeaderPrice : S.basePrice;
+    const pid = a.order[a.index];
+    const teamObj = winner==='a' ? a.teamA : a.teamB;
+    teamObj.ids.push(pid);
+    teamObj.budget -= price;
+    a.log.push({playerId:pid, team:winner, price, free:false});
+    a.index++;
+    runAutoFill(a, a.capA, a.capB);
+    finishAuctionIfDone(a, a.capA, a.capB);
+    if(!a.done) nextPlayerSetup(a, S.basePrice);
+  } else {
+    a.passesInARow++;
+    if(a.passesInARow>=2){
+      // nobody wanted this player at the asking price — hand it to
+      // whichever team currently has fewer players
+      const pid = a.order[a.index];
+      const short = a.teamA.ids.length <= a.teamB.ids.length ? 'a' : 'b';
+      const teamObj = short==='a' ? a.teamA : a.teamB;
+      teamObj.ids.push(pid);
+      a.log.push({playerId:pid, team:short, price:0, free:true});
+      a.index++;
+      runAutoFill(a, a.capA, a.capB);
+      finishAuctionIfDone(a, a.capA, a.capB);
+      if(!a.done) nextPlayerSetup(a, S.basePrice);
+    } else {
+      a.turn = team==='a' ? 'b' : 'a';
+    }
+  }
+  saveState({auction:a});
+}
+
+function saveAuctionToHistory(){
+  const a = S.auction;
+  resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false};
+  const id = addToHistory({
+    date:new Date().toISOString(),
+    format:S.format,
+    mode:'draft',
+    teamA:{captain:playerName(S.captains.a), players:a.teamA.ids.map(playerName)}, teamAIds:a.teamA.ids,
+    teamB:{captain:playerName(S.captains.b), players:a.teamB.ids.map(playerName)}, teamBIds:a.teamB.ids,
+    subs:(S.subIds||[]).map(playerName), subIds:S.subIds||[]
+  });
+  saveState({auction:Object.assign({}, a, {savedToHistory:true}), phase:'complete', lastHistoryId:id});
+}
+
+// Lets either captain (or the host) stop bidding early and have whatever's
+// left of the roster divided between the two teams — still balanced by
+// ability, position and chemistry against what each side already bought.
+function randomizeRemaining(){
+  const a = JSON.parse(JSON.stringify(S.auction));
+  if(a.done) return;
+  const capA = a.capA || S.format, capB = a.capB || S.format;
+  const remaining = a.order.slice(a.index);
+  const needA = Math.max(0, capA - a.teamA.ids.length);
+  const needB = Math.max(0, capB - a.teamB.ids.length);
+  const {sideAIds, sideBIds} = balancedAssign(remaining, a.teamA.ids, a.teamB.ids, needA, needB);
+  sideAIds.forEach(pid=>{ a.teamA.ids.push(pid); a.log.push({playerId:pid, team:'a', price:0, free:true}); });
+  sideBIds.forEach(pid=>{ a.teamB.ids.push(pid); a.log.push({playerId:pid, team:'b', price:0, free:true}); });
+  a.index = a.order.length;
+  a.leader = null;
+  a.done = true;
+  saveState({auction:a});
+}
+
+function getCompleteTeamIds(){
+  if(S.mode==='draft' && S.auction){
+    return {teamAIds:S.auction.teamA.ids, teamBIds:S.auction.teamB.ids, subIds:S.subIds||[]};
+  } else if(S.randomResult){
+    return {teamAIds:S.randomResult.teamA, teamBIds:S.randomResult.teamB, subIds:S.randomResult.subs};
+  }
+  return {teamAIds:[], teamBIds:[], subIds:[]};
+}
+
+function startNewMatch(){
+  saveState(Object.assign(defaultState(), {
+    format:S.format,
+    selectedIds:(S.selectedIds||[]).filter(id=>findPlayer(id)),
+    budget:S.budget, basePrice:S.basePrice, increment:S.increment
+  }));
+}
+
+function claimHost(){
+  isHostDevice = true;
+  try{ localStorage.setItem('md_is_host', '1'); }catch(e){}
+  render();
+}
+function releaseHost(){
+  isHostDevice = false;
+  try{ localStorage.setItem('md_is_host', '0'); }catch(e){}
+  render();
+}
+// The manual fallback for becoming host on a device that didn't come in
+// through the secret host link — same shared secret, just typed in instead.
+function toggleHostCode(){
+  showHostCode = !showHostCode;
+  hostCodeDraft = '';
+  loginError = '';
+  hostCodeError = false;
+  render();
+}
+function submitHostCode(){
+  if(isHostCode(hostCodeDraft)){
+    showHostCode = false;
+    hostCodeDraft = '';
+    hostCodeError = false;
+    claimHost();
+  } else {
+    hostCodeError = true;
+    render();
+  }
+}
+// Which roster player this device belongs to, if any — scoped per squad
+// since the same phone might be a captain in one squad and a spectator in
+// another. null means "just spectating".
+function normName(s){ return String(s||'').trim().replace(/\s+/g,' ').toLowerCase(); }
+function getLoginName(){
+  try{ return localStorage.getItem('md_login_name') || ''; }catch(e){ return ''; }
+}
+function findPlayerByName(name){
+  const n = normName(name);
+  if(!n) return null;
+  return allPlayersArr().find(p=>normName(p.name)===n) || null;
+}
+// Login is just a name: whichever player in this squad's roster has that name.
+// Stored as a name (not an id) so it keeps working if the host switches squads
+// and the same person is in both.
+function getMyPlayerId(){
+  const p = findPlayerByName(getLoginName());
+  return p ? p.id : null;
+}
+function submitLogin(){
+  const typed = (loginDraft||'').trim();
+  if(!typed){ loginError = 'Type your name first.'; render(); return; }
+  const p = findPlayerByName(typed);
+  if(!p){ loginError = 'We couldn\u2019t find \u201c' + typed + '\u201d. Check the spelling, or ask the host to add you.'; render(); return; }
+  try{ localStorage.setItem('md_login_name', p.name); }catch(e){}
+  loginDraft = ''; loginError = '';
+  render();
+}
+function logout(){
+  try{ localStorage.removeItem('md_login_name'); }catch(e){}
+  loginDraft = ''; loginError = '';
+  render();
+}
+function loginRequired(){ return !isHost() && !getMyPlayerId(); }
+// Derived, not chosen: 'a'/'b' only once this device's player has actually
+// been picked as a captain for the current match.
+function myTeamRole(){
+  const id = getMyPlayerId();
+  if(!id || !S.captains) return null;
+  if(S.captains.a===id) return 'a';
+  if(S.captains.b===id) return 'b';
+  return null;
+}
+function myRoleLabel(){
+  const team = myTeamRole();
+  if(team==='a') return `Captain — ${playerName(S.captains.a)}`;
+  if(team==='b') return `Captain — ${playerName(S.captains.b)}`;
+  const id = getMyPlayerId();
+  if(id) return `Playing as ${playerName(id)}`;
+  return 'Logged in';
+}
+
+/* ---- share the final teams as plain text (for WhatsApp etc) ---- */
+function buildTeamSheetText(){
+  const {teamAIds, teamBIds, subIds} = getCompleteTeamIds();
+  const lines = [];
+  lines.push('⚽ ' + (isHost() ? currentSquadName() : 'Matchday Draft') + ' — ' + S.format + 'v' + S.format);
+  lines.push('');
+  lines.push('Team A: ' + teamAIds.map(playerName).join(', '));
+  lines.push('Team B: ' + teamBIds.map(playerName).join(', '));
+  if(subIds.length) lines.push('Subs: ' + subIds.map(playerName).join(', '));
+  const h = HISTORY.find(x=>x.id===S.lastHistoryId);
+  if(h && h.winner){
+    lines.push('');
+    lines.push('🏆 ' + (h.winner==='draw' ? 'Draw' : 'Team '+h.winner.toUpperCase()+' won') +
+      (h.scoreA!=null && h.scoreB!=null ? ' ' + h.scoreA + '–' + h.scoreB : ''));
+  }
+  return lines.join('\n');
+}
+function copyTeamSheet(){
+  const text = buildTeamSheetText();
+  const onDone = () => {
+    copyFeedback = true; render();
+    setTimeout(()=>{ copyFeedback = false; render(); }, 1800);
+  };
+  const fallback = () => {
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      onDone();
+    }catch(e){ /* clipboard unavailable — nothing more we can do */ }
+  };
+  try{
+    if(navigator && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(onDone).catch(fallback);
+    }else{
+      fallback();
+    }
+  }catch(e){ fallback(); }
+}
+
+/* ============================= Match results & stats ============================= */
+
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+
+// How many rank spots a win is worth. A short kickabout barely moves
+// anyone; a long session moves more. A lopsided scoreline moves more than
+// a squeaker. And an upset — the team that was, on paper, weaker coming in
+// — moves more than a "favorite wins as expected" result, which barely
+// moves at all. Everything folds into one integer shift (1-5 spots).
+function computeRankShift(teamAIds, teamBIds, winner, scoreA, scoreB, durationMinutes){
+  if(winner!=='a' && winner!=='b') return 1;
+  const winIds = winner==='a' ? teamAIds : teamBIds;
+  const loseIds = winner==='a' ? teamBIds : teamAIds;
+  const avgRank = ids => ids.length ? ids.reduce((s,id)=>s+rankOf(id),0)/ids.length : 0;
+  const winAvg = avgRank(winIds), loseAvg = avgRank(loseIds);
+  const span = Math.max(1, SQUAD.players.length - 1);
+
+  const mins = Number(durationMinutes);
+  const durationFactor = (mins>0) ? clamp(mins/60, 0.4, 1.8) : 1;
+
+  let marginFactor = 1;
+  if(scoreA!=null && scoreB!=null && !isNaN(scoreA) && !isNaN(scoreB)){
+    marginFactor = clamp(1 + Math.abs(scoreA-scoreB)*0.15, 1, 2);
+  }
+
+  // positive when the winners were the weaker side coming in (an upset)
+  const upset = (loseAvg - winAvg) / span;
+  const upsetFactor = clamp(1 + upset*1.2, 0.4, 1.8);
+
+  const raw = durationFactor * marginFactor * upsetFactor;
+  return clamp(Math.round(raw), 1, 5);
+}
+
+// Applies everything a recorded result affects: play/win/loss/draw/goal
+// tallies, a graduation + rank nudge (bigger for longer/lopsided/upset
+// wins) for winners, and automatic chemistry links for pairs who've now
+// won together three times.
+function applyMatchOutcome(teamAIds, teamBIds, winner, scorers, scoreA, scoreB, durationMinutes, assists){
+  const rankShift = computeRankShift(teamAIds, teamBIds, winner, scoreA, scoreB, durationMinutes);
+  const next = cloneSquad();
+  next.stats = Object.assign({}, next.stats||{});
+  const bump = (id, key) => {
+    next.stats[id] = Object.assign({played:0,wins:0,losses:0,draws:0,goals:0,assists:0}, next.stats[id]);
+    next.stats[id][key]++;
+  };
+  teamAIds.concat(teamBIds).forEach(id=>{
+    next.stats[id] = Object.assign({played:0,wins:0,losses:0,draws:0,goals:0,assists:0}, next.stats[id]);
+    next.stats[id].played++;
+  });
+  if(winner==='a'){ teamAIds.forEach(id=>bump(id,'wins')); teamBIds.forEach(id=>bump(id,'losses')); }
+  else if(winner==='b'){ teamBIds.forEach(id=>bump(id,'wins')); teamAIds.forEach(id=>bump(id,'losses')); }
+  else if(winner==='draw'){ teamAIds.concat(teamBIds).forEach(id=>bump(id,'draws')); }
+  (scorers||[]).forEach(s=>{
+    if(!s.playerId || !s.goals) return;
+    next.stats[s.playerId] = Object.assign({played:0,wins:0,losses:0,draws:0,goals:0,assists:0}, next.stats[s.playerId]);
+    next.stats[s.playerId].goals += s.goals;
+  });
+  (assists||[]).forEach(a=>{
+    if(!a.playerId || !a.assists) return;
+    next.stats[a.playerId] = Object.assign({played:0,wins:0,losses:0,draws:0,goals:0,assists:0}, next.stats[a.playerId]);
+    next.stats[a.playerId].assists += a.assists;
+  });
+
+  const winningIds = winner==='a' ? teamAIds.slice() : winner==='b' ? teamBIds.slice() : [];
+
+  // graduate unranked winners into the ranked list before nudging anyone
+  winningIds.forEach(id=>{
+    const u = (next.unrankedPlayers||[]).find(p=>p.id===id);
+    if(u){
+      next.unrankedPlayers = next.unrankedPlayers.filter(p=>p.id!==id);
+      next.players.splice(Math.round(next.players.length/2), 0, u);
+    }
+  });
+  // nudge each winner up by the computed number of rank spots. Ability
+  // rank is stored ascending (index 0 = weakest, last = strongest — same
+  // convention as the "Weaker"/"Stronger" arrows in the database), so
+  // moving UP means increasing the index.
+  winningIds.forEach(id=>{
+    let idx = next.players.findIndex(p=>p.id===id);
+    let steps = rankShift;
+    while(steps>0 && idx>=0 && idx < next.players.length-1){
+      [next.players[idx+1], next.players[idx]] = [next.players[idx], next.players[idx+1]];
+      idx++; steps--;
+    }
+  });
+  // co-win tracking: three wins together auto-links a pair's chemistry
+  next.coWin = Object.assign({}, next.coWin||{});
+  if(winningIds.length>=2){
+    for(let i=0;i<winningIds.length;i++){
+      for(let j=i+1;j<winningIds.length;j++){
+        const key = [winningIds[i],winningIds[j]].sort().join('|');
+        next.coWin[key] = (next.coWin[key]||0)+1;
+        if(next.coWin[key]===3){
+          next.chemistryGroups = mergeChemistry(next.chemistryGroups||[], [winningIds[i], winningIds[j]]);
+        }
+      }
+    }
+  }
+  saveSquadDoc(next);
+}
+
+// Undoes the play/win/loss/draw/goal counters and co-win tallies a match
+// entry contributed, for deleting or editing a past result. Deliberately
+// does NOT try to rewind the rank-order nudge — later matches may already
+// have built on top of that ordering, so unwinding it exactly isn't
+// possible in general; only the counters and (when this exact match was
+// the one that crossed the threshold) the chemistry link it created are
+// reversed.
+function revertMatchOutcome(entry){
+  if(!entry) return;
+  const teamAIds = entry.teamAIds||[], teamBIds = entry.teamBIds||[];
+  const winner = entry.winner, scorers = entry.scorers||[];
+  if(!winner && !scorers.length && !(entry.assists||[]).length) return; // nothing was ever applied for this entry
+
+  const next = cloneSquad();
+  next.stats = Object.assign({}, next.stats||{});
+  const dec = (id, key) => {
+    if(!next.stats[id]) return;
+    next.stats[id] = Object.assign({}, next.stats[id]);
+    next.stats[id][key] = Math.max(0, (next.stats[id][key]||0) - 1);
+  };
+  if(winner){
+    teamAIds.concat(teamBIds).forEach(id=> dec(id,'played'));
+    if(winner==='a'){ teamAIds.forEach(id=>dec(id,'wins')); teamBIds.forEach(id=>dec(id,'losses')); }
+    else if(winner==='b'){ teamBIds.forEach(id=>dec(id,'wins')); teamAIds.forEach(id=>dec(id,'losses')); }
+    else if(winner==='draw'){ teamAIds.concat(teamBIds).forEach(id=>dec(id,'draws')); }
+  }
+  scorers.forEach(s=>{
+    if(!s.playerId || !s.goals || !next.stats[s.playerId]) return;
+    next.stats[s.playerId] = Object.assign({}, next.stats[s.playerId]);
+    next.stats[s.playerId].goals = Math.max(0, next.stats[s.playerId].goals - s.goals);
+  });
+  (entry.assists||[]).forEach(a=>{
+    if(!a.playerId || !a.assists || !next.stats[a.playerId]) return;
+    next.stats[a.playerId] = Object.assign({}, next.stats[a.playerId]);
+    next.stats[a.playerId].assists = Math.max(0, (next.stats[a.playerId].assists||0) - a.assists);
+  });
+
+  const winningIds = winner==='a' ? teamAIds.slice() : winner==='b' ? teamBIds.slice() : [];
+  next.coWin = Object.assign({}, next.coWin||{});
+  if(winningIds.length>=2){
+    for(let i=0;i<winningIds.length;i++){
+      for(let j=i+1;j<winningIds.length;j++){
+        const key = [winningIds[i],winningIds[j]].sort().join('|');
+        if(!next.coWin[key]) continue;
+        const was = next.coWin[key];
+        next.coWin[key] = Math.max(0, was-1);
+        // only undo the auto-link if THIS match is what created it, and it
+        // hasn't since merged with a bigger chemistry group
+        if(was>=3 && next.coWin[key]<3){
+          next.chemistryGroups = (next.chemistryGroups||[]).filter(g=>
+            !(g.length===2 && g.includes(winningIds[i]) && g.includes(winningIds[j])));
+        }
+      }
+    }
+  }
+  saveSquadDoc(next);
+}
+
+function setResultWinner(w){ resultDraft.winner = (resultDraft.winner===w) ? null : w; render(); }
+function addScorerRow(){ resultDraft.scorers.push({playerId:'', goals:1}); render(); }
+function removeScorerRow(i){ resultDraft.scorers.splice(i,1); render(); }
+function setScorerPlayer(i, id){ resultDraft.scorers[i].playerId = id; }
+function setScorerGoals(i, val){ resultDraft.scorers[i].goals = Number(val)||1; }
+function addAssistRow(){ resultDraft.assists.push({playerId:'', assists:1}); render(); }
+function removeAssistRow(i){ resultDraft.assists.splice(i,1); render(); }
+function setAssistPlayer(i, id){ resultDraft.assists[i].playerId = id; }
+function setAssistCount(i, val){ resultDraft.assists[i].assists = Number(val)||1; }
+function skipResult(){ resultDraft.saved = true; render(); }
+
+function saveMatchResult(){
+  const {teamAIds, teamBIds} = getCompleteTeamIds();
+  const scoreA = resultDraft.scoreA===''? null : Number(resultDraft.scoreA);
+  const scoreB = resultDraft.scoreB===''? null : Number(resultDraft.scoreB);
+  const duration = resultDraft.duration===''? null : Number(resultDraft.duration);
+  const scorers = resultDraft.scorers.filter(s=>s.playerId && s.goals>0);
+  const assists = resultDraft.assists.filter(a=>a.playerId && a.assists>0);
+  updateHistoryResult(S.lastHistoryId, {winner:resultDraft.winner, scoreA, scoreB, scorers, assists, duration});
+  applyMatchOutcome(teamAIds, teamBIds, resultDraft.winner, scorers, scoreA, scoreB, duration, assists);
+  resultDraft.saved = true;
+  render();
+}
+
+/* ---- log a match played without the app ---- */
+function freshLogDraft(){
+  return { format:S.format, teamA:[], teamB:[], winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[] };
+}
+function toggleLogMatch(){
+  if(!isHost()){ showLogMatch = false; return; }
+  showLogMatch = !showLogMatch;
+  if(showLogMatch) logDraft = freshLogDraft();
+  render();
+}
+function logSetFormat(n){ logDraft.format = n; render(); }
+function logToggleTeam(id, team){
+  logDraft.teamA = logDraft.teamA.filter(x=>x!==id);
+  logDraft.teamB = logDraft.teamB.filter(x=>x!==id);
+  if(team==='a') logDraft.teamA.push(id);
+  else if(team==='b') logDraft.teamB.push(id);
+  render();
+}
+function logSetWinner(w){ logDraft.winner = (logDraft.winner===w) ? null : w; render(); }
+function logAddScorerRow(){ logDraft.scorers.push({playerId:'', goals:1}); render(); }
+function logRemoveScorerRow(i){ logDraft.scorers.splice(i,1); render(); }
+function logSetScorerPlayer(i, id){ logDraft.scorers[i].playerId = id; }
+function logSetScorerGoals(i, val){ logDraft.scorers[i].goals = Number(val)||1; }
+function logAddAssistRow(){ logDraft.assists.push({playerId:'', assists:1}); render(); }
+function logRemoveAssistRow(i){ logDraft.assists.splice(i,1); render(); }
+function logSetAssistPlayer(i, id){ logDraft.assists[i].playerId = id; }
+function logSetAssistCount(i, val){ logDraft.assists[i].assists = Number(val)||1; }
+
+function saveLoggedMatch(){
+  if(logDraft.teamA.length<1 || logDraft.teamB.length<1) return;
+  const scoreA = logDraft.scoreA===''? null : Number(logDraft.scoreA);
+  const scoreB = logDraft.scoreB===''? null : Number(logDraft.scoreB);
+  const duration = logDraft.duration===''? null : Number(logDraft.duration);
+  const scorers = logDraft.scorers.filter(s=>s.playerId && s.goals>0);
+  const assists = logDraft.assists.filter(a=>a.playerId && a.assists>0);
+  addToHistory({
+    date:new Date().toISOString(),
+    format:logDraft.format,
+    mode:'manual',
+    teamA:{players:logDraft.teamA.map(playerName)}, teamAIds:logDraft.teamA,
+    teamB:{players:logDraft.teamB.map(playerName)}, teamBIds:logDraft.teamB,
+    subs:[], subIds:[],
+    winner: logDraft.winner, scoreA, scoreB, duration, scorers, assists
+  });
+  applyMatchOutcome(logDraft.teamA, logDraft.teamB, logDraft.winner, scorers, scoreA, scoreB, duration, assists);
+  showLogMatch = false;
+  render();
+}
+
+/* ============================= Rendering ============================= */
+
+const PHASE_STEPS = [
+  {key:'setup', label:'Roster'},
+  {key:'mode', label:'Mode'},
+  {key:'draft', label:'Draft'},
+  {key:'complete', label:'Result'}
+];
+
+function phaseStepKey(phase){
+  if(phase==='setup') return 'setup';
+  if(phase==='mode') return 'mode';
+  if(['captains','budget','auction'].includes(phase)) return 'draft';
+  if(phase==='random') return 'draft';
+  if(phase==='complete') return 'complete';
+  return 'setup';
+}
+
+// Rebuilding #app wholesale (below) would otherwise reset page scroll and
+// any open modal's internal scroll back to the top on every single click —
+// so capture both here and restore them right after.
+function renderLoading(){
+  return `
+  <div class="login-wrap">
+    <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
+    <div class="login-card"><p class="login-sub" style="margin:0;">${slowConnect ? 'Still connecting… check your internet connection, this can take a moment.' : 'Connecting…'}</p></div>
+  </div>`;
+}
+function renderLogin(){
+  const hostBox = showHostCode ? `
+    <div class="login-row" style="margin-top:10px;">
+      <input type="password" id="hostCodeInput" placeholder="Host code" autocomplete="off" value="${esc(hostCodeDraft)}"
+        oninput="hostCodeDraft=this.value" onkeydown="if(event.key==='Enter'){ submitHostCode(); }">
+      <button class="btn" onclick="submitHostCode()">Unlock</button>
+    </div>
+    ${hostCodeError ? `<div class="login-err">That code isn't right.</div>` : ''}
+    <div class="login-foot"><button class="btn btn-ghost btn-sm" onclick="toggleHostCode()">Cancel</button></div>
+  ` : `<div class="login-foot"><button class="btn btn-ghost btn-sm" onclick="toggleHostCode()">I'm the host</button></div>`;
+  return `
+  <div class="login-wrap">
+    <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
+    <div class="login-card">
+      <h2>Log in</h2>
+      <p class="login-sub">Type your name — the same one the host added you with. No password needed.</p>
+      <div class="login-row">
+        <input type="text" id="loginNameInput" placeholder="Your name" autocomplete="off" autocapitalize="words" value="${esc(loginDraft)}"
+          oninput="loginDraft=this.value" onkeydown="if(event.key==='Enter'){ submitLogin(); }">
+        <button class="btn btn-primary" onclick="submitLogin()">Enter</button>
+      </div>
+      ${loginError ? `<div class="login-err">${esc(loginError)}</div>` : ''}
+      ${hostBox}
+    </div>
+  </div>`;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  const pageScrollY = window.scrollY;
+  const openModal = document.querySelector('.modal-backdrop');
+  const modalScrollTop = openModal ? openModal.scrollTop : null;
+  // keep the cursor in a login box if a live update re-renders mid-typing
+  const ae = document.activeElement;
+  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput')) ? ae.id : null;
+  const keepPos = keepId ? ae.selectionStart : null;
+
+  if(!(dbReady && rosterLoaded)){ app.innerHTML = renderLoading(); return; }
+  if(loginRequired()){
+    app.innerHTML = renderLogin();
+    if(keepId){
+      const el = document.getElementById(keepId);
+      if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
+    }
+    return;
+  }
+
+  app.innerHTML = renderTopbar() + renderProgress() + renderBanner() + renderBody()
+    + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal() + renderAwardsModal();
+
+  window.scrollTo(0, pageScrollY);
+  if(modalScrollTop != null){
+    const newModal = document.querySelector('.modal-backdrop');
+    if(newModal) newModal.scrollTop = modalScrollTop;
+  }
+}
+
+function currentSquadName(){
+  const sq = squadsList.find(s=>s.id===currentSquadId);
+  return sq ? sq.name : 'My Squad';
+}
+
+function renderTopbar(){
+  return `
+  <div class="topbar">
+    <div class="brand">
+      <span class="ball">⚽</span>
+      <div>
+        <h1>Matchday Draft</h1>
+        <small>${isHost() ? esc(currentSquadName()) + ' · ' : ''}${esc(String(S.format))}v${esc(String(S.format))} · ${S.mode ? esc(S.mode) : 'no mode yet'}</small>
+      </div>
+    </div>
+    <div class="row" style="gap:8px;">
+      ${isHost() ? `
+      <div class="role-pill squad-pill">
+        <label>Squad</label>
+        <select onchange="switchSquad(this.value)">
+          ${squadsList.map(s=>`<option value="${s.id}" ${s.id===currentSquadId?'selected':''}>${esc(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="toggleSquadManager()">⚙</button>
+      ` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="toggleAwards()">🏆 Awards</button>
+      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
+      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
+      <button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>
+      ${isHost() ? `
+      <span class="chip" style="cursor:default;">Host</span>
+      ${(isHostDevice && db) ? `<button class="btn btn-ghost btn-sm" onclick="releaseHost()" title="Log out of host mode on this device">Step down</button>` : ''}
+      ` : `
+      <span class="chip" style="cursor:default;">${esc(myRoleLabel())}</span>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
+      `}
+    </div>
+  </div>`;
+}
+
+function renderProgress(){
+  const cur = phaseStepKey(S.phase);
+  const order = PHASE_STEPS.map(s=>s.key);
+  const curIdx = order.indexOf(cur);
+  return `<div class="progress-strip">${
+    PHASE_STEPS.map((s,i)=>{
+      let cls = 'step';
+      if(i===curIdx) cls += ' active';
+      else if(i<curIdx) cls += ' done';
+      return `<div class="${cls}">${esc(s.label)}</div>`;
+    }).join('')
+  }</div>`;
+}
+
+function renderBanner(){
+  if(!db){
+    return `<div class="banner amber">Playing solo on this device — live sync to other phones isn't switched on here, but everything below still works on this phone.</div>`;
+  }
+  return '';
+}
+
+function isHost(){ return isHostDevice || (dbReady && !db); }
+
+function renderBody(){
+  switch(S.phase){
+    case 'setup': return renderSetup();
+    case 'mode': return renderModeChoice();
+    case 'random': return renderRandom();
+    case 'captains': return renderCaptainsPick();
+    case 'budget': return renderBudget();
+    case 'auction': return renderAuction();
+    case 'complete': return renderComplete();
+    default: return renderSetup();
+  }
+}
+
+/* ---- shared: database row / edit panel / chemistry panel ---- */
+function editPanelHtml(p){
+  const attrs = attributesOf(p.id);
+  return `
+    <div class="edit-panel">
+      <div class="edit-label">Position(s)</div>
+      <div class="chip-toggle-row">
+        ${POSITION_ORDER.map(pos=>`<button type="button" class="chip-toggle ${(p.positions||[]).includes(pos)?'active':''}" onclick="togglePlayerPosition('${p.id}','${pos}')">${POSITIONS[pos].label}</button>`).join('')}
+      </div>
+      <div class="edit-label">Special attributes (tap again for +)</div>
+      <div class="chip-toggle-row">
+        ${ATTRIBUTE_ORDER.map(a=>{
+          const lvl = attrs[a]||0;
+          return `<button type="button" class="chip-toggle ${lvl>0?'active':''} ${lvl===2?'plus':''}" onclick="togglePlayerAttribute('${p.id}','${a}')">${attrChipLabel(a,lvl)}</button>`;
+        }).join('')}
+      </div>
+      <div class="edit-label">Standout quality</div>
+      <div class="chip-toggle-row">
+        <button type="button" class="chip-toggle star-toggle ${p.star?'active':''}" onclick="togglePlayerStar('${p.id}')">⭐ Star player — huge quality gap over the rest</button>
+      </div>
+      <div class="edit-label">Availability</div>
+      <div class="chip-toggle-row">
+        <button type="button" class="chip-toggle ${p.unavailable?'active':''}" onclick="toggleUnavailable('${p.id}')">🚫 Unavailable — hide from the match-day picker for now</button>
+      </div>
+    </div>`;
+}
+
+function playerRowHtml(p, i, ranked, total){
+  return `
+    <li class="player-row-wrap" style="${p.unavailable?'opacity:.55;':''}">
+      <div class="player-row">
+        ${ranked
+          ? `<span class="rank-badge">#${i+1}</span><span class="ability-bar"><i style="width:${Math.round((i/Math.max(1,(total||1)-1))*100)}%"></i></span>`
+          : `<span class="rank-badge">?</span>`}
+        <span class="badge-row">${posBadges(p.id)}${starBadge(p.id)}${chemBadge(p.id)}</span>
+        <span class="player-name">${esc(p.name)}${p.unavailable ? ' <span class="chip" style="padding:2px 8px; font-size:.7rem;">Unavailable</span>' : ''}</span>
+        ${isHost() ? `
+        <span class="row-controls">
+          <button class="icon-btn" title="${p.unavailable?'Mark available':'Mark unavailable'}" onclick="toggleUnavailable('${p.id}')">${p.unavailable?'✅':'🚫'}</button>
+          <button class="icon-btn" title="Edit position / attributes" onclick="toggleEditPanel('${p.id}')">✎</button>
+          ${ranked ? `
+          <button class="icon-btn" title="Weaker" onclick="movePlayer('${p.id}',-1)" ${i===0?'disabled':''}>▲</button>
+          <button class="icon-btn" title="Stronger" onclick="movePlayer('${p.id}',1)" ${i===(total-1)?'disabled':''}>▼</button>
+          ` : `<button class="btn btn-sm" onclick="rankPlayerNow('${p.id}')">Rank now</button>`}
+          <button class="icon-btn" title="Remove from database" onclick="removePlayer('${p.id}')">✕</button>
+        </span>` : ''}
+      </div>
+      ${attrChips(p.id)}
+      ${statsLine(p.id)}
+      ${isHost() && editingPlayerId===p.id ? editPanelHtml(p) : ''}
+    </li>`;
+}
+
+function renderChemistryPanel(){
+  if(!isHost()) return '';
+  const all = rosterPlayersArr(); // guests are one-off — not eligible for a standing chemistry link
+  if(all.length<2) return '';
+  const groups = SQUAD.chemistryGroups||[];
+  return `
+  <div class="panel-title" style="font-size:1.3rem; margin-top:16px;">Chemistry links</div>
+  <div class="panel-sub">Tick two or more players who play well together — random splits (and mid-draft randomizing) will try to keep them on the same team. Regulars who win three matches together get linked automatically.</div>
+  <div class="chip-toggle-row" style="margin-bottom:10px;">
+    ${all.map(p=>`<button type="button" class="chip-toggle ${chemSelection.includes(p.id)?'active':''}" onclick="toggleChemSelect('${p.id}')">${esc(p.name)}</button>`).join('')}
+  </div>
+  <button class="btn btn-sm" ${chemSelection.length<2?'disabled':''} onclick="linkChemistry()">🔗 Link selected (${chemSelection.length})</button>
+  ${groups.length ? `
+  <div style="margin-top:14px; display:flex; flex-direction:column; gap:6px;">
+    ${groups.map((g,i)=>`
+      <div class="row" style="justify-content:space-between; background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:8px 12px;">
+        <span>🔗 ${g.map(id=>esc(playerName(id))).join(', ')}</span>
+        <button class="icon-btn" title="Unlink" onclick="unlinkChemistry(${i})">✕</button>
+      </div>`).join('')}
+  </div>` : ''}`;
+}
+
+/* ---- monthly awards: golden boot, leaderboard and streaks all reset each
+   calendar month, computed straight from this squad's match history rather
+   than a lifetime counter (rank/chemistry stay cumulative — only the
+   "awards" board is scoped to one month at a time). ---- */
+function yearMonthOf(dateStr){
+  const d = new Date(dateStr);
+  if(isNaN(d)) return null;
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function currentYearMonth(){ return yearMonthOf(new Date().toISOString()); }
+function formatYearMonth(ym){
+  const [y,m] = ym.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString(undefined, {month:'long', year:'numeric'});
+}
+function shiftYearMonth(ym, delta){
+  const [y,m] = ym.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function statsMonthPrev(){ statsMonth = shiftYearMonth(statsMonth||currentYearMonth(), -1); render(); }
+function statsMonthNext(){ statsMonth = shiftYearMonth(statsMonth||currentYearMonth(), 1); render(); }
+function statsMonthReset(){ statsMonth = null; render(); }
+
+function historyForMonth(month){
+  return HISTORY.filter(h=> yearMonthOf(h.date)===month);
+}
+// Tallies played/win/loss/draw/goals/assists per player from just this
+// month's matches — independent of SQUAD.stats, which stays a lifetime
+// total. Guests are deliberately excluded so a one-off fill-in never shows
+// up on the leaderboard.
+function computeMonthlyStats(month){
+  const stats = {};
+  const bump = (id,key)=>{
+    if(isGuest(id)) return;
+    stats[id] = stats[id] || {played:0,wins:0,losses:0,draws:0,goals:0,assists:0};
+    stats[id][key]++;
+  };
+  historyForMonth(month).forEach(h=>{
+    const teamAIds = h.teamAIds||[], teamBIds = h.teamBIds||[];
+    teamAIds.concat(teamBIds).forEach(id=> bump(id,'played'));
+    if(h.winner==='a'){ teamAIds.forEach(id=>bump(id,'wins')); teamBIds.forEach(id=>bump(id,'losses')); }
+    else if(h.winner==='b'){ teamBIds.forEach(id=>bump(id,'wins')); teamAIds.forEach(id=>bump(id,'losses')); }
+    else if(h.winner==='draw'){ teamAIds.concat(teamBIds).forEach(id=>bump(id,'draws')); }
+    (h.scorers||[]).forEach(s=>{
+      if(!s.playerId || !s.goals || isGuest(s.playerId)) return;
+      stats[s.playerId] = stats[s.playerId] || {played:0,wins:0,losses:0,draws:0,goals:0,assists:0};
+      stats[s.playerId].goals += s.goals;
+    });
+    (h.assists||[]).forEach(a=>{
+      if(!a.playerId || !a.assists || isGuest(a.playerId)) return;
+      stats[a.playerId] = stats[a.playerId] || {played:0,wins:0,losses:0,draws:0,goals:0,assists:0};
+      stats[a.playerId].assists += a.assists;
+    });
+  });
+  return stats;
+}
+
+/* ---- Player of the match: voted by anyone who played that day, one team
+   at a time — not picked by the host. Votes live on the history entry
+   itself ({potmVotes:{a:{voterId:candidateId}, b:{...}}}), so they sync and
+   persist just like the rest of the match record. ---- */
+function computePotmTally(h, team){
+  const votes = ((h&&h.potmVotes)||{})[team] || {};
+  const tally = {};
+  Object.values(votes).forEach(candidateId=>{ tally[candidateId] = (tally[candidateId]||0)+1; });
+  return tally;
+}
+function computePotmWinner(h, team){
+  const tally = computePotmTally(h, team);
+  const ids = Object.keys(tally);
+  if(!ids.length) return null;
+  const max = Math.max(...ids.map(id=>tally[id]));
+  const leaders = ids.filter(id=>tally[id]===max);
+  return {leaders, count:max, tied: leaders.length>1};
+}
+function castPotmVote(historyId, team, candidateId){
+  const myId = getMyPlayerId();
+  const h = HISTORY.find(x=>x.id===historyId);
+  if(!h || !myId) return;
+  const participants = (h.teamAIds||[]).concat(h.teamBIds||[]);
+  if(!participants.includes(myId)) return; // only those who actually played that day get a say
+  const candidates = team==='a' ? (h.teamAIds||[]) : (h.teamBIds||[]);
+  if(!candidates.includes(candidateId)) return;
+  const potmVotes = Object.assign({a:{}, b:{}}, h.potmVotes);
+  potmVotes[team] = Object.assign({}, potmVotes[team], {[myId]: candidateId});
+  updateHistoryResult(historyId, {potmVotes});
+}
+function potmVotingHtml(h){
+  if(!h) return '';
+  const myId = getMyPlayerId();
+  const participants = (h.teamAIds||[]).concat(h.teamBIds||[]);
+  const canVote = !!myId && participants.includes(myId);
+  function teamBlock(team, ids){
+    if(!ids.length) return '';
+    const votes = ((h.potmVotes||{})[team]) || {};
+    const myVote = myId ? votes[myId] : null;
+    const winner = computePotmWinner(h, team);
+    return `
+    <div style="flex:1; min-width:180px;">
+      <div class="edit-label">Team ${team.toUpperCase()}</div>
+      <div class="chip-toggle-row">
+        ${ids.map(id=>{
+          const count = Object.values(votes).filter(v=>v===id).length;
+          return `<button type="button" class="chip-toggle ${myVote===id?'active':''}" ${canVote?`onclick="castPotmVote('${h.id}','${team}','${id}')"`:'disabled'}>${esc(playerName(id))}${count?' ('+count+')':''}</button>`;
+        }).join('')}
+      </div>
+      ${winner ? `<div class="panel-sub" style="margin-top:4px;">🏅 ${winner.tied ? 'Tied: '+winner.leaders.map(id=>esc(playerName(id))).join(' & ') : esc(playerName(winner.leaders[0]))} (${winner.count} vote${winner.count===1?'':'s'})</div>` : ''}
+    </div>`;
+  }
+  return `
+  <div class="panel">
+    <div class="panel-title" style="font-size:1.1rem;">🏅 Player of the match</div>
+    <div class="panel-sub">${canVote ? "Voted by whoever played that day — tap your pick for each team." : "Only players who took part in this match get a vote."}</div>
+    <div class="row" style="gap:16px; flex-wrap:wrap; margin-top:6px;">
+      ${teamBlock('a', h.teamAIds||[])}
+      ${teamBlock('b', h.teamBIds||[])}
+    </div>
+  </div>`;
+}
+// Tallies undisputed (non-tied) POTM wins per player across a month, for
+// the awards leaderboard — a tie contributes to nobody's count.
+function computeMonthlyPotmCounts(month){
+  const counts = {};
+  historyForMonth(month).forEach(h=>{
+    ['a','b'].forEach(team=>{
+      const w = computePotmWinner(h, team);
+      if(w && !w.tied && !isGuest(w.leaders[0])){
+        counts[w.leaders[0]] = (counts[w.leaders[0]]||0) + 1;
+      }
+    });
+  });
+  return counts;
+}
+// Current form within the selected month only — streaks reset each month
+// along with everything else on the awards board.
+function computeStreak(id, month){
+  let streak = 0, type = null;
+  for(const h of historyForMonth(month)){
+    const inA = (h.teamAIds||[]).includes(id), inB = (h.teamBIds||[]).includes(id);
+    if(!inA && !inB) continue;
+    if(!h.winner) break;
+    const won = (inA && h.winner==='a') || (inB && h.winner==='b');
+    const lost = (inA && h.winner==='b') || (inB && h.winner==='a');
+    const cur = won ? 'W' : lost ? 'L' : 'D';
+    if(type===null){ type = cur; streak = 1; }
+    else if(cur===type){ streak++; }
+    else break;
+  }
+  return (type==='W' || type==='L') && streak>=2 ? {type, streak} : null;
+}
+function streakBadge(id, month){
+  const s = computeStreak(id, month);
+  if(!s) return '';
+  return s.type==='W'
+    ? `<span class="mono" style="color:var(--good);"> 🔥${s.streak}W</span>`
+    : `<span class="mono" style="color:var(--danger);"> ❄️${s.streak}L</span>`;
+}
+
+function renderStatsTable(){
+  const month = statsMonth || currentYearMonth();
+  const monthly = computeMonthlyStats(month);
+  const ids = Object.keys(monthly);
+  const sorted = ids.slice().sort((x,y)=> monthly[y].wins - monthly[x].wins);
+  const topScorer = ids.slice().sort((x,y)=> monthly[y].goals - monthly[x].goals)[0];
+  const topScorerGoals = topScorer ? monthly[topScorer].goals : 0;
+  const topAssister = ids.slice().sort((x,y)=> monthly[y].assists - monthly[x].assists)[0];
+  const topAssisterCount = topAssister ? monthly[topAssister].assists : 0;
+  const potmCounts = computeMonthlyPotmCounts(month);
+  const potmIds = Object.keys(potmCounts);
+  const topPotm = potmIds.slice().sort((x,y)=>potmCounts[y]-potmCounts[x])[0];
+  const topPotmCount = topPotm ? potmCounts[topPotm] : 0;
+  return `
+  <div class="row" style="justify-content:space-between; align-items:center;">
+    <div class="panel-title" style="font-size:1.3rem; margin-bottom:0;">${esc(formatYearMonth(month))}</div>
+    <span class="row-controls">
+      <button class="icon-btn" title="Previous month" onclick="statsMonthPrev()">◂</button>
+      ${statsMonth && statsMonth!==currentYearMonth() ? `<button class="btn btn-sm" onclick="statsMonthReset()">Today</button>` : ''}
+      <button class="icon-btn" title="Next month" onclick="statsMonthNext()">▸</button>
+    </span>
+  </div>
+  ${!ids.length ? `<div class="empty-note" style="margin-top:8px;">No matches recorded in ${esc(formatYearMonth(month))} yet.</div>` : `
+  ${topScorerGoals>0 ? `<div class="panel-sub" style="margin:8px 0 2px;">🥇 Golden boot: <b style="color:var(--chalk);">${esc(playerName(topScorer))}</b> — ${topScorerGoals} goal${topScorerGoals===1?'':'s'}</div>` : ''}
+  ${topAssisterCount>0 ? `<div class="panel-sub" style="margin:2px 0;">🎯 Playmaker: <b style="color:var(--chalk);">${esc(playerName(topAssister))}</b> — ${topAssisterCount} assist${topAssisterCount===1?'':'s'}</div>` : ''}
+  ${topPotmCount>0 ? `<div class="panel-sub" style="margin:2px 0 8px;">🏅 Most POTMs: <b style="color:var(--chalk);">${esc(playerName(topPotm))}</b> — ${topPotmCount}</div>` : ''}
+  <div style="display:flex; flex-direction:column; gap:4px;">
+    ${sorted.map(id=>{
+      const s = monthly[id];
+      return `<div class="row" style="justify-content:space-between; font-size:.85rem; padding:4px 0; border-bottom:1px solid var(--line);">
+        <span>${esc(playerName(id))}${starBadge(id)}</span>
+        <span class="mono" style="color:var(--chalk-dim);">${s.played}P ${s.wins}W ${s.draws}D ${s.losses}L · ${s.goals}⚽ ${s.assists}🅰${potmCounts[id]?' · '+potmCounts[id]+'🏅':''}${streakBadge(id, month)}</span>
+      </div>`;
+    }).join('')}
+  </div>`}`;
+}
+
+function renderAddPlayerForm(){
+  if(!isHost()) return '';
+  const squadNames = allPlayersArr().map(p=>`<option value="${esc(p.name)}">`).join('');
+  return `
+    <form onsubmit="event.preventDefault(); submitAddPlayer();">
+      <div class="row" style="margin-bottom:10px;">
+        <div class="grow">
+          <input type="text" id="addNameInput" list="squadNames" placeholder="Player name" autocomplete="off" oninput="autofillFromSquad(this.value)">
+          <datalist id="squadNames">${squadNames}</datalist>
+        </div>
+        <button class="btn btn-primary" type="submit">+ Add to database</button>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>Position(s)</label>
+        <div class="chip-toggle-row">
+          ${POSITION_ORDER.map(pos=>`<button type="button" class="chip-toggle add-pos-chip ${addForm.positions.includes(pos)?'active':''}" data-pos="${pos}" onclick="toggleAddPosition('${pos}', this)">${POSITIONS[pos].label}</button>`).join('')}
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Special attributes (tap again for +)</label>
+        <div class="chip-toggle-row">
+          ${ATTRIBUTE_ORDER.map(a=>{
+            const lvl = addForm.attributes[a]||0;
+            return `<button type="button" class="chip-toggle add-attr-chip ${lvl>0?'active':''} ${lvl===2?'plus':''}" data-attr="${a}" onclick="cycleAddAttribute('${a}', this)">${attrChipLabel(a,lvl)}</button>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="row" style="gap:8px;">
+        <button type="button" class="chip-toggle add-unknown-chip ${addForm.unknown?'active':''}" onclick="toggleAddUnknown(this)">❔ Don't know their ability yet</button>
+        <button type="button" class="chip-toggle add-star-chip ${addForm.star?'active':''}" onclick="toggleAddStar(this)">⭐ Star player</button>
+      </div>
+    </form>
+    <div style="height:6px;"></div>`;
+}
+
+/* ---- Setup: pick who's here today from the database ---- */
+// Shown the moment selection hits exactly format*2 — catches both a
+// latecomer arriving after teams are already "full" and a host who meant to
+// pick a bigger format. Stays dismissed (per the state flags) until the
+// format changes or the extra-player choice is reset.
+function extraPlayerPromptHtml(sel){
+  if(!isHost()) return '';
+  const need = S.format*2;
+  if(sel.length !== need || S.oddSide || S.extraConfirmedEven) return '';
+  return `
+  <div class="banner amber" style="margin-top:10px;">
+    <div style="margin-bottom:8px;">That's exactly ${need} for ${S.format}v${S.format} — is there one more player today?</div>
+    <div class="row" style="gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-sm" onclick="confirmEvenTeams()">No, that's everyone</button>
+      <button class="btn btn-sm" onclick="confirmExtraPlayer()">Yes — uneven teams (${S.format+1}v${S.format})</button>
+      <button class="btn btn-sm" onclick="bumpFormatForExtra()">Actually I meant ${S.format+1}v${S.format+1}</button>
+    </div>
+  </div>`;
+}
+
+function renderSetup(){
+  const known = SQUAD.players.filter(p=>!p.unavailable);
+  const unranked = (SQUAD.unrankedPlayers||[]).filter(p=>!p.unavailable);
+  const unavailableCount = SQUAD.players.concat(SQUAD.unrankedPlayers||[]).filter(p=>p.unavailable).length;
+  const sel = S.selectedIds||[];
+  const todaysGuests = (SQUAD.guests||[]).filter(g=>sel.includes(g.id));
+
+  function selRow(p, rankLabel){
+    const checked = sel.includes(p.id);
+    const canTick = isHost() || p.id === getMyPlayerId();
+    return `
+    <li class="player-row-wrap select-row ${checked?'selected':''} ${canTick?'':'locked'}" ${canTick?`onclick="toggleSelected('${p.id}')"`:''}>
+      <div class="player-row">
+        <span class="rank-badge">${rankLabel}</span>
+        <span class="check-box">${checked?'✓':''}</span>
+        <span class="badge-row">${posBadges(p.id)}${starBadge(p.id)}${chemBadge(p.id)}</span>
+        <span class="player-name">${esc(p.name)}${p.guest?' <span class="chip" style="padding:2px 8px; font-size:.7rem;">Guest</span>':''}</span>
+      </div>
+    </li>`;
+  }
+
+  const rankedRows = known.map((p,i)=>selRow(p, '#'+(i+1))).join('');
+  const unrankedRows = unranked.map(p=>selRow(p,'?')).join('');
+  const guestRows = todaysGuests.map(p=>selRow(p,'G')).join('');
+  const total = known.length + unranked.length;
+
+  return `
+  <div class="panel">
+    <div class="panel-title">Match format</div>
+    <div class="panel-sub">How many a side today?</div>
+    <div class="format-grid">
+      ${FORMATS.map(n=>`
+        <div class="format-card ${S.format===n?'active':''}" ${isHost()?`onclick="setFormat(${n})"`:''}>
+          <div class="num">${n}v${n}</div>
+          <div class="lbl">${n*2} players</div>
+        </div>`).join('')}
+    </div>
+    ${S.oddSide ? `<div class="panel-sub" style="margin-top:8px;">Uneven teams confirmed — Team ${S.oddSide.toUpperCase()} will carry the extra player (${S.format+1}v${S.format}).${isHost() ? ` <button class="btn btn-ghost btn-sm" onclick="saveState({oddSide:null, extraConfirmedEven:false})">Undo</button>` : ''}</div>` : ''}
+  </div>
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+      <div class="panel-title" style="margin-bottom:0;">Who's playing today</div>
+      ${isHost() ? `<button class="btn btn-sm" onclick="toggleDatabase()">🗂 Player database</button>` : ''}
+    </div>
+    <div class="panel-sub">${isHost()
+      ? `Anyone can tap themselves in from their own phone — no need to wait for the host to open the app. New to the group? Add them from the player database first, then they'll show up here.${unavailableCount ? ` (${unavailableCount} marked unavailable and hidden — manage that in the player database.)` : ''}`
+      : `Tap your own name to mark yourself in or out. Only the host can change anyone else.`}</div>
+    ${total || todaysGuests.length ? `
+      <div class="panel-sub" style="margin-bottom:8px;">${sel.length} selected · ${compositionLine(sel)}${(sel.length && positionCounts(sel).GK===0) ? ' · <span style="color:var(--danger)">no goalkeepers selected</span>':''}</div>
+      <ul class="player-list">${rankedRows}${unrankedRows}${guestRows}</ul>
+    ` : `<div class="empty-note">No players in the database yet — open the player database to add some.</div>`}
+    ${extraPlayerPromptHtml(sel)}
+    ${isHost() ? `
+    <div class="row" style="gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+      <input type="text" class="field-input" style="flex:1; min-width:140px;" placeholder="Guest's name" value="${esc(guestForm.name)}" oninput="guestForm.name=this.value" onkeydown="if(event.key==='Enter'){ submitGuestPlayer(); }">
+      ${POSITION_ORDER.map(pos=>`<button type="button" class="chip-toggle ${guestForm.positions.includes(pos)?'active':''}" onclick="toggleGuestPosition('${pos}', this)">${POSITIONS[pos].label}</button>`).join('')}
+      <button class="btn btn-sm" onclick="submitGuestPlayer()">+ Guest for today</button>
+    </div>
+    <div class="panel-sub" style="margin-top:4px;">One-off fill-in — counts today, but won't clutter the permanent database or monthly awards.</div>` : ''}
+  </div>
+
+  ${isHost() ? `
+  <div class="footer-actions">
+    <button class="btn btn-primary" ${sel.length<2?'disabled':''} onclick="goToMode()">Continue to mode ▸</button>
+  </div>` : `<div class="waiting-note">Waiting for the host to finish picking today's players…</div>`}
+  `;
+}
+
+/* ---- Player database modal ---- */
+function toggleDatabase(){ showDatabase = !showDatabase; render(); }
+function renderDatabaseModal(){
+  if(!showDatabase) return '';
+  if(!isHost()){ showDatabase = false; return ''; } // roster management stays host-only; see renderAwardsModal for the everyone-facing view
+  const rankedRows = SQUAD.players.map((p,i)=>playerRowHtml(p,i,true,SQUAD.players.length)).join('');
+  const unrankedRows = (SQUAD.unrankedPlayers||[]).map(p=>playerRowHtml(p,0,false)).join('');
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleDatabase();">
+    <div class="modal" style="max-width:640px;">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <div class="panel-title" style="margin:0;">Player database</div>
+        <button class="icon-btn" onclick="toggleDatabase()">✕</button>
+      </div>
+      <div class="panel-sub">Everyone who's ever played — add new people, tweak positions/attributes, adjust ability rank, and manage chemistry links here. Match setup just picks who's around today.</div>
+      <div class="panel-sub">Rank only moves on its own after a win, and only for that calendar month — it resets back to however you last set it manually (the ▲▼ arrows, or ranking someone for the first time) once a new month starts.</div>
+      ${renderAddPlayerForm()}
+      ${SQUAD.players.length ? `
+        <div class="panel-sub" style="margin:10px 0 8px;">${compositionLine(allPlayerIds())}</div>
+        <ul class="player-list">${rankedRows}</ul>` : `<div class="empty-note">No ranked players yet.</div>`}
+      ${(SQUAD.unrankedPlayers||[]).length ? `
+        <div class="panel-title" style="font-size:1.1rem; margin:16px 0 8px;">New / unranked players</div>
+        <ul class="player-list">${unrankedRows}</ul>` : ''}
+      ${renderChemistryPanel()}
+    </div>
+  </div>`;
+}
+
+/* ---- Awards board: open to every viewer, not just the host ---- */
+function toggleAwards(){ showAwards = !showAwards; if(!showAwards) showAwardsCard = false; render(); }
+function toggleAwardsCard(){ showAwardsCard = !showAwardsCard; render(); }
+// The longest current win streak across the whole month, for the shareable
+// card's headline "hot streak" — the full board already shows everyone's
+// streak inline, this just picks out the single best one.
+function computeTopStreak(month){
+  const monthly = computeMonthlyStats(month);
+  let best = null;
+  Object.keys(monthly).forEach(id=>{
+    const s = computeStreak(id, month);
+    if(s && s.type==='W' && (!best || s.streak>best.streak)) best = {id, streak:s.streak};
+  });
+  return best;
+}
+// A single-glance, portrait-ish summary meant to be screenshotted and
+// dropped into the group chat, rather than making everyone open the app.
+function renderAwardsCardHtml(){
+  const month = statsMonth || currentYearMonth();
+  const monthly = computeMonthlyStats(month);
+  const ids = Object.keys(monthly);
+  const topScorer = ids.slice().sort((x,y)=>monthly[y].goals-monthly[x].goals)[0];
+  const topScorerGoals = topScorer ? monthly[topScorer].goals : 0;
+  const topAssister = ids.slice().sort((x,y)=>monthly[y].assists-monthly[x].assists)[0];
+  const topAssisterCount = topAssister ? monthly[topAssister].assists : 0;
+  const potmCounts = computeMonthlyPotmCounts(month);
+  const potmIds = Object.keys(potmCounts);
+  const topPotm = potmIds.slice().sort((x,y)=>potmCounts[y]-potmCounts[x])[0];
+  const topPotmCount = topPotm ? potmCounts[topPotm] : 0;
+  const streak = computeTopStreak(month);
+  const rows = [
+    topScorerGoals>0 ? {icon:'🥇', label:'Golden boot', value: playerName(topScorer)+' — '+topScorerGoals+' goal'+(topScorerGoals===1?'':'s')} : null,
+    topAssisterCount>0 ? {icon:'🎯', label:'Playmaker', value: playerName(topAssister)+' — '+topAssisterCount+' assist'+(topAssisterCount===1?'':'s')} : null,
+    topPotmCount>0 ? {icon:'🏅', label:'Most POTMs', value: playerName(topPotm)+' — '+topPotmCount} : null,
+    streak ? {icon:'🔥', label:'Hot streak', value: playerName(streak.id)+' — '+streak.streak+' wins in a row'} : null
+  ].filter(Boolean);
+  return `
+  <div style="background:linear-gradient(160deg, var(--panel-2), var(--panel)); border:1px solid var(--line-strong); border-radius:var(--radius); padding:24px; text-align:center;">
+    <div style="font-size:.75rem; letter-spacing:.15em; text-transform:uppercase; color:var(--chalk-faint);">${esc(isHost() ? currentSquadName() : 'Matchday Draft')}</div>
+    <div style="font-size:1.5rem; font-weight:700; margin:4px 0 18px;">🏆 ${esc(formatYearMonth(month))}</div>
+    ${rows.length ? `
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      ${rows.map(r=>`
+      <div>
+        <div style="font-size:1.6rem;">${r.icon}</div>
+        <div style="font-size:.7rem; text-transform:uppercase; letter-spacing:.1em; color:var(--chalk-faint); margin-top:2px;">${esc(r.label)}</div>
+        <div style="font-size:1.1rem; font-weight:600;">${esc(r.value)}</div>
+      </div>`).join('')}
+    </div>` : `<div class="empty-note">No matches recorded yet this month.</div>`}
+    <div style="margin-top:20px; font-size:.75rem; color:var(--chalk-faint);">📸 Screenshot to share in the group chat</div>
+  </div>`;
+}
+function renderAwardsModal(){
+  if(!showAwards) return '';
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleAwards();">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between; margin-bottom:4px;">
+        <div class="panel-title" style="margin:0;">🏆 Awards</div>
+        <span class="row-controls">
+          <button class="btn btn-sm" onclick="toggleAwardsCard()">${showAwardsCard ? '📋 Full board' : '📤 Shareable card'}</button>
+          <button class="icon-btn" onclick="toggleAwards()">✕</button>
+        </span>
+      </div>
+      <div class="panel-sub">Golden boot, form and the wins/losses table — everyone's, open to everyone. Resets each month.</div>
+      ${showAwardsCard ? renderAwardsCardHtml() : renderStatsTable()}
+    </div>
+  </div>`;
+}
+
+/* ---- Squad manager (host only): create / rename / delete / switch squads ---- */
+function renderSquadManagerModal(){
+  if(!showSquadManager) return '';
+  if(!isHost()){ showSquadManager = false; return ''; }
+  const rows = squadsList.map(s=>`
+    <div class="squad-row ${s.id===currentSquadId?'current':''}">
+      <input type="text" class="field-input" style="flex:1;" value="${esc(s.name)}"
+        onchange="renameSquad('${s.id}', this.value)">
+      <span class="row-controls">
+        ${s.id!==currentSquadId ? `<button class="btn btn-sm" onclick="switchSquad('${s.id}')">Switch</button>` : `<span class="cap-tag">Current</span>`}
+        <button class="icon-btn" title="Delete squad" ${squadsList.length<=1?'disabled':''} onclick="deleteSquad('${s.id}')">✕</button>
+      </span>
+    </div>`).join('');
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleSquadManager();">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <div class="panel-title" style="margin:0;">Squads</div>
+        <button class="icon-btn" onclick="toggleSquadManager()">✕</button>
+      </div>
+      <div class="panel-sub">Keep separate player databases and match histories for different groups you play with — a Friday 5-a-side crew and a Sunday league team don't have to share a roster.</div>
+      ${rows}
+      <div class="row" style="margin-top:12px;">
+        <input type="text" class="field-input grow" id="newSquadNameInput" placeholder="New squad name" value="${esc(newSquadName)}" oninput="newSquadName=this.value" onkeydown="if(event.key==='Enter'){ createNewSquadFromInput(); }">
+        <button class="btn btn-primary" onclick="createNewSquadFromInput()">+ Create</button>
+      </div>
+    </div>
+  </div>`;
+}
+function createNewSquadFromInput(){
+  createSquad(newSquadName);
+}
+
+/* ---- Mode choice ---- */
+function renderModeChoice(){
+  if(!isHost()){
+    return `<div class="panel"><div class="waiting-note">Waiting for the host to choose random split or captain's draft…</div></div>`;
+  }
+  return `
+  <div class="panel">
+    <div class="panel-title">How should we split up?</div>
+    <div class="panel-sub">${S.playingIds.length} playing today${S.subIds.length? ' · '+S.subIds.length+' on the bench (chosen at random since the squad is bigger than '+(S.format*2)+')':''}.</div>
+    <div class="mode-grid">
+      <div class="mode-card" onclick="chooseMode('random')">
+        <div class="emoji">🎲</div>
+        <h3>Random split</h3>
+        <p>Instantly balances two teams by ability rank and by position — each side gets a fair share of defenders, midfielders and forwards, and a keeper whenever two or more are available. Reshuffle as many times as you like before confirming.</p>
+      </div>
+      <div class="mode-card" onclick="chooseMode('draft')">
+        <div class="emoji">🧢</div>
+        <h3>Captain's draft</h3>
+        <p>Pick two captains, give them a budget, and let them bid against each other for every other player — live, from their own phones.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer-actions"><button class="btn btn-ghost" onclick="backToSetup()">◂ Back to roster</button></div>
+  `;
+}
+
+/* ---- Random result ---- */
+function teamListHtml(ids){
+  if(!ids.length) return `<div class="slot-empty">— none —</div>`;
+  return `<ul>${ids.map(id=>`<li><span>${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}</span></li>`).join('')}</ul>`;
+}
+function teamCompHtml(ids){
+  const noGk = positionCounts(ids).GK === 0;
+  return `<span class="team-comp">${compositionLine(ids)}${noGk ? ' · ⚠ no GK' : ''}</span>`;
+}
+
+// A quick "how even is this?" readout for the host to eyeball before
+// confirming — ability gap, position-coverage gap, and whether any star
+// players ended up on the same side.
+function balanceSummary(teamA, teamB){
+  const abA = teamA.reduce((s,id)=>s+rankOf(id),0), abB = teamB.reduce((s,id)=>s+rankOf(id),0);
+  const abDiff = Math.abs(abA-abB);
+  const cA = positionCounts(teamA), cB = positionCounts(teamB);
+  const posDiff = POSITION_ORDER.reduce((s,p)=>s+Math.abs(cA[p]-cB[p]),0);
+  const starsA = starCount(teamA), starsB = starCount(teamB);
+  const starClash = starsA>0 && starsB===0 ? 'a' : starsB>0 && starsA===0 ? 'b' : null;
+  const label = (abDiff<=2 && posDiff<=2 && !starClash) ? 'Well balanced'
+    : (abDiff<=4 && posDiff<=4) ? 'Reasonably balanced' : 'Lopsided';
+  return {abDiff, posDiff, starsA, starsB, starClash, label};
+}
+function balanceReadoutHtml(teamA, teamB){
+  const b = balanceSummary(teamA, teamB);
+  const tone = b.label==='Lopsided' ? 'amber' : 'good';
+  return `<div class="banner ${tone} balance-note">⚖ ${b.label} — ability gap ${b.abDiff.toFixed(1)}, position gap ${b.posDiff}${
+    (b.starsA+b.starsB)>0 ? (b.starClash ? ` · ⚠ both stars on Team ${b.starClash.toUpperCase()}` : ' · stars split across teams') : ''
+  }</div>`;
+}
+
+function renderRandom(){
+  const r = S.randomResult;
+  if(!r) return `<div class="panel"><div class="waiting-note">Shuffling…</div></div>`;
+  return `
+  <div class="panel">
+    <div class="panel-title">Random split</div>
+    <div class="panel-sub">Balanced by ability rank, position and star players, teams shuffled for who's "Team A" vs "Team B".</div>
+    ${balanceReadoutHtml(r.teamA, r.teamB)}
+    <div class="teams-grid">
+      <div class="team-card">
+        <div class="team-head a"><h3>Team A</h3>${teamCompHtml(r.teamA)}</div>
+        <div class="team-body">${teamListHtml(r.teamA)}</div>
+      </div>
+      <div class="team-card">
+        <div class="team-head b"><h3>Team B</h3>${teamCompHtml(r.teamB)}</div>
+        <div class="team-body">${teamListHtml(r.teamB)}</div>
+      </div>
+    </div>
+    ${r.subs.length ? `
+    <div class="panel-title subs-card" style="font-size:1.1rem;">Bench / subs</div>
+    <div class="chip-row">${r.subs.map(id=>`<span class="chip">${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}</span>`).join('')}</div>
+    ` : ''}
+  </div>
+  ${isHost() ? `
+  <div class="footer-actions">
+    <button class="btn btn-ghost" onclick="backToSetup()">◂ Back</button>
+    <button class="btn" onclick="reshuffleRandom()">🔀 Reshuffle</button>
+    <button class="btn btn-primary" onclick="confirmRandom()">✅ Confirm &amp; save</button>
+  </div>` : `<div class="waiting-note">Waiting for the host to confirm…</div>`}
+  `;
+}
+
+/* ---- Captains pick ---- */
+function renderCaptainsPick(){
+  if(!isHost()){
+    return `<div class="panel"><div class="waiting-note">Waiting for the host to pick captains…</div></div>`;
+  }
+  const mode = S.captainPickMode;
+  const caps = S.captains;
+  let body = '';
+  if(!mode){
+    body = `
+    <div class="toggle-row">
+      <div class="toggle-btn" onclick="setCaptainPickMode('manual')">Pick manually</div>
+      <div class="toggle-btn" onclick="setCaptainPickMode('random'); randomizeCaptains();">🎲 Randomize</div>
+    </div>`;
+  } else if(mode==='manual'){
+    const names = S.playingIds.map(id=>{
+      let cls = 'pick-name';
+      if(caps.a===id) cls += ' pick-a';
+      else if(caps.b===id) cls += ' pick-b';
+      return `<div class="${cls}" onclick="manualPick('${id}')">${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}${caps.a===id?' (A)':''}${caps.b===id?' (B)':''}</div>`;
+    }).join('');
+    body = `
+      <div class="panel-sub">Tap a name for Captain A, then another for Captain B.</div>
+      <div class="pick-grid">${names}</div>
+      <button class="btn btn-ghost btn-sm" onclick="resetCaptains()">Reset picks</button>
+    `;
+  } else {
+    body = `
+      <div class="panel-sub">Randomly chosen from today's players.</div>
+      <button class="btn btn-sm" onclick="randomizeCaptains()">🎲 Re-roll</button>
+    `;
+  }
+
+  return `
+  <div class="panel">
+    <div class="panel-title">Pick two captains</div>
+    ${body}
+    ${(caps.a && caps.b) ? `
+      <div class="row" style="margin-top:14px;">
+        <div class="chip" style="border-color:var(--teamA); color:var(--teamA);">Captain A — ${esc(playerName(caps.a))}</div>
+        <div class="chip" style="border-color:var(--teamB); color:var(--teamB);">Captain B — ${esc(playerName(caps.b))}</div>
+      </div>` : ''}
+  </div>
+  <div class="footer-actions">
+    <button class="btn btn-ghost" onclick="backToSetup()">◂ Back</button>
+    <button class="btn btn-primary" ${(caps.a && caps.b) ? '' : 'disabled'} onclick="goToBudget()">Continue to budget ▸</button>
+  </div>
+  `;
+}
+
+/* ---- Budget setup ---- */
+function renderBudget(){
+  if(!isHost()){
+    return `<div class="panel"><div class="waiting-note">Waiting for the host to set the auction budget…</div></div>`;
+  }
+  return `
+  <div class="panel">
+    <div class="panel-title">Auction budget</div>
+    <div class="panel-sub">Every player goes up for the same starting price — captains bid it up from there. Both captains get the same budget.</div>
+    <div class="row">
+      <div class="field grow">
+        <label>Starting budget / captain</label>
+        <input type="number" min="10" step="5" id="fBudget" value="${S.budget}">
+      </div>
+      <div class="field grow">
+        <label>Starting price / player</label>
+        <input type="number" min="5" step="5" id="fBase" value="${S.basePrice}">
+      </div>
+      <div class="field grow">
+        <label>Bid increment</label>
+        <input type="number" min="1" step="1" id="fIncrement" value="${S.increment}">
+      </div>
+    </div>
+    <div class="banner" style="margin-top:14px;">If a captain runs out of budget before their squad is full, whoever is still short gets the remaining unsold players free of charge once the other team fills up.</div>
+  </div>
+  <div class="footer-actions">
+    <button class="btn btn-ghost" onclick="saveState({phase:'captains'})">◂ Back</button>
+    <button class="btn btn-primary" onclick="startAuction(Number(document.getElementById('fBudget').value)||100, Number(document.getElementById('fBase').value)||10, Number(document.getElementById('fIncrement').value)||5)">Start auction ▸</button>
+  </div>
+  `;
+}
+
+/* ---- Auction ---- */
+function capCardHtml(team){
+  const a = S.auction;
+  const capA = a.capA || S.format, capB = a.capB || S.format;
+  const teamObj = team==='a' ? a.teamA : a.teamB;
+  const capId = team==='a' ? S.captains.a : S.captains.b;
+  const isTurn = !a.done && a.turn===team && (teamFull(a.teamA,capA)===teamFull(a.teamB,capB));
+  const n = team==='a' ? capA : capB;
+  return `
+    <div class="cap-card ${team} ${isTurn?'turn':''}">
+      <div class="who">Team ${team.toUpperCase()} · Captain</div>
+      <div class="cap-name">${esc(playerName(capId))}</div>
+      <div class="cap-budget">₹${teamObj.budget}</div>
+      <div class="fill">${teamObj.ids.length}/${n} players</div>
+    </div>`;
+}
+
+function renderAuctionActions(){
+  const a = S.auction;
+  if(a.done) return '';
+  const capA = a.capA || S.format, capB = a.capB || S.format;
+  const bothOpen = teamFull(a.teamA,capA) === teamFull(a.teamB,capB);
+  if(!bothOpen){
+    return `<div class="waiting-note">Filling the remaining roster automatically…</div>`;
+  }
+  const myTeam = myTeamRole();
+  const canActAsA = isHost() || myTeam==='a';
+  const canActAsB = isHost() || myTeam==='b';
+
+  function actionsFor(team, canAct){
+    const isTurn = a.turn===team;
+    const teamObj = team==='a'?a.teamA:a.teamB;
+    const canAfford = teamObj.budget >= a.currentBid;
+    if(!isTurn){
+      return `<div class="waiting-note">Waiting for Team ${team.toUpperCase()}…</div>`;
+    }
+    if(!canAct){
+      return `<div class="waiting-note">It's Team ${team.toUpperCase()}'s turn — waiting on their phone…</div>`;
+    }
+    return `
+      <div class="bid-actions">
+        <button class="btn btn-primary" ${canAfford?'':'disabled'} onclick="auctionBid('${team}')">Bid ₹${a.currentBid}</button>
+        <button class="btn btn-danger" onclick="auctionPass('${team}')">Pass</button>
+      </div>`;
+  }
+
+  const canRandomize = isHost() || myTeam==='a' || myTeam==='b';
+  return `
+    <div class="teams-grid">
+      <div>${actionsFor('a', canActAsA)}</div>
+      <div>${actionsFor('b', canActAsB)}</div>
+    </div>
+    ${canRandomize ? `
+    <div class="footer-actions" style="margin-top:10px;">
+      <button class="btn btn-sm" onclick="randomizeRemaining()">🔀 Randomize remaining players &amp; finish</button>
+    </div>` : ''}`;
+}
+
+function renderAuction(){
+  const a = S.auction;
+  if(!a) return `<div class="panel"><div class="waiting-note">Setting up the auction…</div></div>`;
+  const currentId = a.order[a.index];
+  const onBlock = !a.done && currentId;
+
+  const log = a.log.slice(-8).reverse().map(l=>
+    `<li>${l.free? '🎁 ':'💰 '}<b>${esc(playerName(l.playerId))}</b> → Team ${l.team.toUpperCase()} ${l.free? '(free — leftover)':'for ₹'+l.price}</li>`
+  ).join('');
+
+  return `
+  <div class="panel">
+    <div class="panel-title">Live auction</div>
+    <div class="panel-sub">Best-ranked players go up first · ${a.index}/${a.order.length} decided</div>
+    <div class="auction-scoreboard">
+      ${capCardHtml('a')}
+      <div class="block-card">
+        ${onBlock ? `
+          <div class="tag">On the block</div>
+          <div class="name">${esc(playerName(currentId))} ${posBadges(currentId)}${starBadge(currentId)}${chemBadge(currentId)}</div>
+          ${attrChips(currentId)}
+          <div class="price">₹${a.currentBid}</div>
+          <div class="leader">${a.leader ? 'Leading: Team '+a.leader.toUpperCase()+' at ₹'+a.pendingLeaderPrice : 'No bids yet'}</div>
+        ` : `<div class="tag">Auction complete</div><div class="name">🏁</div>`}
+      </div>
+      ${capCardHtml('b')}
+    </div>
+    ${renderAuctionActions()}
+  </div>
+
+  <div class="panel log-panel">
+    <div class="panel-title" style="font-size:1.1rem; margin-bottom:8px;">Sold so far</div>
+    ${log ? `<ul class="log-list">${log}</ul>` : `<div class="empty-note">No sales yet.</div>`}
+  </div>
+
+  ${a.done && isHost() ? `
+  <div class="footer-actions">
+    <button class="btn btn-primary" onclick="saveAuctionToHistory()">✅ Finish &amp; save result</button>
+  </div>` : ''}
+  `;
+}
+
+/* ---- Complete: final teams + optional match result ---- */
+function renderComplete(){
+  const {teamAIds, teamBIds, subIds} = getCompleteTeamIds();
+  let capA=null, capB=null, priceOf=()=>null;
+  if(S.mode==='draft' && S.auction){
+    capA = S.captains.a; capB = S.captains.b;
+    const priceMap = {};
+    S.auction.log.forEach(l=>{ priceMap[l.playerId] = l; });
+    priceOf = (id)=> priceMap[id];
+  }
+
+  function list(ids, capId){
+    return `<ul>${ids.map(id=>{
+      const rec = priceOf(id);
+      const isCap = id===capId;
+      return `<li><span>${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}${isCap?'<span class="cap-tag">C</span>':''}</span>${rec && !isCap ? `<span class="price">${rec.free?'free':'₹'+rec.price}</span>`:''}</li>`;
+    }).join('')}</ul>`;
+  }
+  function compAndBudget(ids, budgetLeft){
+    const noGk = positionCounts(ids).GK === 0;
+    return `<span class="team-comp">${compositionLine(ids)}${noGk?' · ⚠ no GK':''}${budgetLeft!=null?' · ₹'+budgetLeft+' left':''}</span>`;
+  }
+
+  return `
+  <div class="panel">
+    <div class="banner good">Saved to match history 🎉</div>
+    <div class="panel-title">Final teams</div>
+    <div class="teams-grid">
+      <div class="team-card">
+        <div class="team-head a"><h3>Team A</h3>${compAndBudget(teamAIds, S.mode==='draft'?S.auction.teamA.budget:null)}</div>
+        <div class="team-body">${list(teamAIds, capA)}</div>
+      </div>
+      <div class="team-card">
+        <div class="team-head b"><h3>Team B</h3>${compAndBudget(teamBIds, S.mode==='draft'?S.auction.teamB.budget:null)}</div>
+        <div class="team-body">${list(teamBIds, capB)}</div>
+      </div>
+    </div>
+    ${subIds.length ? `
+    <div class="panel-title subs-card" style="font-size:1.1rem;">Bench / subs</div>
+    <div class="chip-row">${subIds.map(id=>`<span class="chip">${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}</span>`).join('')}</div>` : ''}
+    <div class="footer-actions" style="margin-top:10px;">
+      <button class="btn btn-sm" onclick="copyTeamSheet()">${copyFeedback?'✅ Copied!':'📋 Copy team sheet'}</button>
+    </div>
+  </div>
+
+  ${renderResultForm(teamAIds, teamBIds)}
+
+  ${potmVotingHtml(HISTORY.find(h=>h.id===S.lastHistoryId))}
+
+  ${isHost() ? `
+  <div class="footer-actions">
+    <button class="btn btn-primary" onclick="startNewMatch()">🏟 Start new match</button>
+  </div>` : ''}
+  `;
+}
+
+function renderResultForm(teamAIds, teamBIds){
+  if(!isHost()) return '';
+  if(resultDraft.saved){
+    return `<div class="panel"><div class="banner good">Match result saved — thanks for keeping the record straight!</div></div>`;
+  }
+  const allMatchIds = teamAIds.concat(teamBIds);
+  const scorerRows = resultDraft.scorers.map((s,i)=>`
+    <div class="row" style="gap:8px; flex-wrap:nowrap;">
+      <select class="field-input" style="flex:1;" onchange="setScorerPlayer(${i}, this.value)">
+        <option value="">Who scored?</option>
+        ${allMatchIds.map(id=>`<option value="${id}" ${s.playerId===id?'selected':''}>${esc(playerName(id))}</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${s.goals||1}" style="width:64px;" onchange="setScorerGoals(${i}, this.value)">
+      <button class="icon-btn" onclick="removeScorerRow(${i})">✕</button>
+    </div>`).join('');
+  const assistRows = resultDraft.assists.map((a,i)=>`
+    <div class="row" style="gap:8px; flex-wrap:nowrap;">
+      <select class="field-input" style="flex:1;" onchange="setAssistPlayer(${i}, this.value)">
+        <option value="">Who assisted?</option>
+        ${allMatchIds.map(id=>`<option value="${id}" ${a.playerId===id?'selected':''}>${esc(playerName(id))}</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${a.assists||1}" style="width:64px;" onchange="setAssistCount(${i}, this.value)">
+      <button class="icon-btn" onclick="removeAssistRow(${i})">✕</button>
+    </div>`).join('');
+
+  return `
+  <div class="panel">
+    <div class="panel-title" style="font-size:1.3rem;">Match result</div>
+    <div class="panel-sub">Optional — fill in whatever you remember. Recording a winner nudges their rank up — more for a longer match, a bigger scoreline, or an upset; barely at all for a short kickabout or a favorite winning as expected — and starts building chemistry between regulars who keep winning together.</div>
+    <div class="field" style="margin-bottom:10px;">
+      <label>Winner</label>
+      <div class="chip-toggle-row">
+        <button type="button" class="chip-toggle ${resultDraft.winner==='a'?'active':''}" onclick="setResultWinner('a')">Team A</button>
+        <button type="button" class="chip-toggle ${resultDraft.winner==='b'?'active':''}" onclick="setResultWinner('b')">Team B</button>
+        <button type="button" class="chip-toggle ${resultDraft.winner==='draw'?'active':''}" onclick="setResultWinner('draw')">Draw</button>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:10px;">
+      <div class="field grow">
+        <label>Score — Team A</label>
+        <input type="number" min="0" value="${resultDraft.scoreA}" oninput="resultDraft.scoreA=this.value">
+      </div>
+      <div class="field grow">
+        <label>Score — Team B</label>
+        <input type="number" min="0" value="${resultDraft.scoreB}" oninput="resultDraft.scoreB=this.value">
+      </div>
+      <div class="field grow">
+        <label>Match length (min)</label>
+        <input type="number" min="0" step="5" placeholder="e.g. 60" value="${resultDraft.duration}" oninput="resultDraft.duration=this.value">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:8px;">
+      <label>Goal scorers</label>
+      <div style="display:flex; flex-direction:column; gap:6px;">${scorerRows}</div>
+      <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-top:6px;" onclick="addScorerRow()">+ Add scorer</button>
+    </div>
+    <div class="field" style="margin-bottom:8px;">
+      <label>Assists</label>
+      <div style="display:flex; flex-direction:column; gap:6px;">${assistRows}</div>
+      <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-top:6px;" onclick="addAssistRow()">+ Add assist</button>
+    </div>
+    <div class="footer-actions">
+      <button class="btn btn-ghost" onclick="skipResult()">Skip for now</button>
+      <button class="btn btn-primary" onclick="saveMatchResult()">💾 Save result</button>
+    </div>
+  </div>`;
+}
+
+/* ---- Log a match played outside the app ---- */
+function renderLogMatchModal(){
+  if(!showLogMatch || !logDraft) return '';
+  if(!isHost()){ showLogMatch = false; return ''; }
+  const all = allPlayersArr();
+  const rows = all.map(p=>{
+    const inA = logDraft.teamA.includes(p.id), inB = logDraft.teamB.includes(p.id);
+    return `
+    <div class="row" style="justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); flex-wrap:nowrap;">
+      <span>${esc(p.name)} ${posBadges(p.id)}${starBadge(p.id)}</span>
+      <span class="row-controls">
+        <button type="button" class="chip-toggle ${inA?'active':''}" style="${inA?'border-color:var(--teamA); color:var(--teamA); background:var(--teamA-dim);':''}" onclick="logToggleTeam('${p.id}', ${inA?'null':"'a'"})">A</button>
+        <button type="button" class="chip-toggle ${inB?'active':''}" style="${inB?'border-color:var(--teamB); color:var(--teamB); background:var(--teamB-dim);':''}" onclick="logToggleTeam('${p.id}', ${inB?'null':"'b'"})">B</button>
+      </span>
+    </div>`;
+  }).join('');
+
+  const allMatchIds = logDraft.teamA.concat(logDraft.teamB);
+  const scorerRows = logDraft.scorers.map((s,i)=>`
+    <div class="row" style="gap:8px; flex-wrap:nowrap;">
+      <select class="field-input" style="flex:1;" onchange="logSetScorerPlayer(${i}, this.value)">
+        <option value="">Who scored?</option>
+        ${allMatchIds.map(id=>`<option value="${id}" ${s.playerId===id?'selected':''}>${esc(playerName(id))}</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${s.goals||1}" style="width:64px;" onchange="logSetScorerGoals(${i}, this.value)">
+      <button class="icon-btn" onclick="logRemoveScorerRow(${i})">✕</button>
+    </div>`).join('');
+  const assistRows = logDraft.assists.map((a,i)=>`
+    <div class="row" style="gap:8px; flex-wrap:nowrap;">
+      <select class="field-input" style="flex:1;" onchange="logSetAssistPlayer(${i}, this.value)">
+        <option value="">Who assisted?</option>
+        ${allMatchIds.map(id=>`<option value="${id}" ${a.playerId===id?'selected':''}>${esc(playerName(id))}</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${a.assists||1}" style="width:64px;" onchange="logSetAssistCount(${i}, this.value)">
+      <button class="icon-btn" onclick="logRemoveAssistRow(${i})">✕</button>
+    </div>`).join('');
+
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleLogMatch();">
+    <div class="modal" style="max-width:600px;">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <div class="panel-title" style="margin:0;">Log a match played outside the app</div>
+        <button class="icon-btn" onclick="toggleLogMatch()">✕</button>
+      </div>
+      <div class="panel-sub">Tag who was on which team and whatever result details you remember — this feeds the same stats, rank and chemistry tracking as matches run through the app.</div>
+      <div class="format-grid" style="margin-bottom:14px;">
+        ${FORMATS.map(n=>`<div class="format-card ${logDraft.format===n?'active':''}" onclick="logSetFormat(${n})"><div class="num">${n}v${n}</div></div>`).join('')}
+      </div>
+      ${all.length ? `<div style="max-height:220px; overflow-y:auto; margin-bottom:14px;">${rows}</div>` : `<div class="empty-note">Add players to the database first.</div>`}
+      <div class="field" style="margin-bottom:10px;">
+        <label>Winner</label>
+        <div class="chip-toggle-row">
+          <button type="button" class="chip-toggle ${logDraft.winner==='a'?'active':''}" onclick="logSetWinner('a')">Team A</button>
+          <button type="button" class="chip-toggle ${logDraft.winner==='b'?'active':''}" onclick="logSetWinner('b')">Team B</button>
+          <button type="button" class="chip-toggle ${logDraft.winner==='draw'?'active':''}" onclick="logSetWinner('draw')">Draw</button>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="field grow"><label>Score — Team A</label><input type="number" min="0" value="${logDraft.scoreA}" oninput="logDraft.scoreA=this.value"></div>
+        <div class="field grow"><label>Score — Team B</label><input type="number" min="0" value="${logDraft.scoreB}" oninput="logDraft.scoreB=this.value"></div>
+        <div class="field grow"><label>Match length (min)</label><input type="number" min="0" step="5" placeholder="e.g. 60" value="${logDraft.duration}" oninput="logDraft.duration=this.value"></div>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>Goal scorers</label>
+        <div style="display:flex; flex-direction:column; gap:6px;">${scorerRows}</div>
+        <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-top:6px;" onclick="logAddScorerRow()">+ Add scorer</button>
+      </div>
+      <div class="field" style="margin-bottom:8px;">
+        <label>Assists</label>
+        <div style="display:flex; flex-direction:column; gap:6px;">${assistRows}</div>
+        <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-top:6px;" onclick="logAddAssistRow()">+ Add assist</button>
+      </div>
+      <div class="footer-actions">
+        <button class="btn btn-primary" ${(logDraft.teamA.length<1||logDraft.teamB.length<1)?'disabled':''} onclick="saveLoggedMatch()">💾 Save match</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---- History modal (host can edit or delete a past match's details) ---- */
+function toggleHistory(){ showHistory = !showHistory; editingHistoryId = null; historyEditDraft = null; pendingDeleteId = null; render(); }
+
+function startEditHistory(id){
+  const h = HISTORY.find(x=>x.id===id);
+  if(!h) return;
+  editingHistoryId = id;
+  pendingDeleteId = null;
+  historyEditDraft = {
+    winner: h.winner || null,
+    scoreA: h.scoreA!=null ? String(h.scoreA) : '',
+    scoreB: h.scoreB!=null ? String(h.scoreB) : '',
+    duration: h.duration!=null ? String(h.duration) : '',
+    scorers: (h.scorers||[]).map(s=>({playerId:s.playerId, goals:s.goals})),
+    assists: (h.assists||[]).map(a=>({playerId:a.playerId, assists:a.assists}))
+  };
+  render();
+}
+function cancelEditHistory(){ editingHistoryId = null; historyEditDraft = null; render(); }
+function setHistEditWinner(w){ historyEditDraft.winner = (historyEditDraft.winner===w) ? null : w; render(); }
+function histEditAddScorerRow(){ historyEditDraft.scorers.push({playerId:'', goals:1}); render(); }
+function histEditRemoveScorerRow(i){ historyEditDraft.scorers.splice(i,1); render(); }
+function histEditSetScorerPlayer(i, id){ historyEditDraft.scorers[i].playerId = id; }
+function histEditSetScorerGoals(i, val){ historyEditDraft.scorers[i].goals = Number(val)||1; }
+function histEditAddAssistRow(){ historyEditDraft.assists.push({playerId:'', assists:1}); render(); }
+function histEditRemoveAssistRow(i){ historyEditDraft.assists.splice(i,1); render(); }
+function histEditSetAssistPlayer(i, id){ historyEditDraft.assists[i].playerId = id; }
+function histEditSetAssistCount(i, val){ historyEditDraft.assists[i].assists = Number(val)||1; }
+
+// Editing re-derives every stat/chemistry effect from scratch: undo what the
+// old recorded result contributed, then apply the edited one. See
+// revertMatchOutcome's note — rank ORDER itself isn't rewound, only counters
+// and chemistry.
+function saveEditHistory(id){
+  const h = HISTORY.find(x=>x.id===id);
+  if(!h || !historyEditDraft) return;
+  revertMatchOutcome(h);
+  const scoreA = historyEditDraft.scoreA===''? null : Number(historyEditDraft.scoreA);
+  const scoreB = historyEditDraft.scoreB===''? null : Number(historyEditDraft.scoreB);
+  const duration = historyEditDraft.duration===''? null : Number(historyEditDraft.duration);
+  const scorers = historyEditDraft.scorers.filter(s=>s.playerId && s.goals>0);
+  const assists = historyEditDraft.assists.filter(a=>a.playerId && a.assists>0);
+  updateHistoryResult(id, {winner:historyEditDraft.winner, scoreA, scoreB, duration, scorers, assists});
+  applyMatchOutcome(h.teamAIds||[], h.teamBIds||[], historyEditDraft.winner, scorers, scoreA, scoreB, duration, assists);
+  editingHistoryId = null;
+  historyEditDraft = null;
+  render();
+}
+
+function askDeleteHistory(id){ pendingDeleteId = id; editingHistoryId = null; render(); }
+function cancelDeleteHistory(){ pendingDeleteId = null; render(); }
+function confirmDeleteHistory(id){
+  const h = HISTORY.find(x=>x.id===id);
+  if(h) revertMatchOutcome(h);
+  deleteHistoryDoc(id);
+  pendingDeleteId = null;
+  render();
+}
+
+function histEditFormHtml(h){
+  const allMatchIds = (h.teamAIds||[]).concat(h.teamBIds||[]);
+  const scorerRows = historyEditDraft.scorers.map((s,i)=>`
+    <div class="row" style="gap:8px; flex-wrap:nowrap;">
+      <select class="field-input" style="flex:1;" onchange="histEditSetScorerPlayer(${i}, this.value)">
+        <option value="">Who scored?</option>
+        ${allMatchIds.map(id=>`<option value="${id}" ${s.playerId===id?'selected':''}>${esc(playerName(id))}</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${s.goals||1}" style="width:64px;" onchange="histEditSetScorerGoals(${i}, this.value)">
+      <button class="icon-btn" onclick="histEditRemoveScorerRow(${i})">✕</button>
+    </div>`).join('');
+  const assistRows = historyEditDraft.assists.map((a,i)=>`
+    <div class="row" style="gap:8px; flex-wrap:nowrap;">
+      <select class="field-input" style="flex:1;" onchange="histEditSetAssistPlayer(${i}, this.value)">
+        <option value="">Who assisted?</option>
+        ${allMatchIds.map(id=>`<option value="${id}" ${a.playerId===id?'selected':''}>${esc(playerName(id))}</option>`).join('')}
+      </select>
+      <input type="number" min="1" value="${a.assists||1}" style="width:64px;" onchange="histEditSetAssistCount(${i}, this.value)">
+      <button class="icon-btn" onclick="histEditRemoveAssistRow(${i})">✕</button>
+    </div>`).join('');
+  return `
+    <div class="edit-panel" style="margin-top:8px;">
+      <div class="edit-label">Winner</div>
+      <div class="chip-toggle-row">
+        <button type="button" class="chip-toggle ${historyEditDraft.winner==='a'?'active':''}" onclick="setHistEditWinner('a')">Team A</button>
+        <button type="button" class="chip-toggle ${historyEditDraft.winner==='b'?'active':''}" onclick="setHistEditWinner('b')">Team B</button>
+        <button type="button" class="chip-toggle ${historyEditDraft.winner==='draw'?'active':''}" onclick="setHistEditWinner('draw')">Draw</button>
+      </div>
+      <div class="row" style="margin:8px 0;">
+        <div class="field grow"><label>Score — A</label><input type="number" min="0" value="${historyEditDraft.scoreA}" oninput="historyEditDraft.scoreA=this.value"></div>
+        <div class="field grow"><label>Score — B</label><input type="number" min="0" value="${historyEditDraft.scoreB}" oninput="historyEditDraft.scoreB=this.value"></div>
+        <div class="field grow"><label>Length (min)</label><input type="number" min="0" step="5" value="${historyEditDraft.duration}" oninput="historyEditDraft.duration=this.value"></div>
+      </div>
+      <div class="edit-label">Goal scorers</div>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;">${scorerRows}</div>
+      <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-bottom:8px;" onclick="histEditAddScorerRow()">+ Add scorer</button>
+      <div class="edit-label">Assists</div>
+      <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;">${assistRows}</div>
+      <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-bottom:8px;" onclick="histEditAddAssistRow()">+ Add assist</button>
+      <div class="footer-actions">
+        <button class="btn btn-ghost btn-sm" onclick="cancelEditHistory()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="saveEditHistory('${h.id}')">💾 Save changes</button>
+      </div>
+    </div>`;
+}
+
+function renderHistoryModal(){
+  if(!showHistory) return '';
+  const items = HISTORY.length ? HISTORY.map(h=>`
+    <div class="history-item">
+      <div class="row" style="justify-content:space-between; align-items:flex-start;">
+        <div class="hdate">${new Date(h.date).toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})} · ${h.format}v${h.format} · ${esc(h.mode)}${h.duration!=null?' · '+h.duration+' min':''}</div>
+        ${isHost() ? `
+        <span class="row-controls">
+          <button class="icon-btn" title="Edit result" onclick="startEditHistory('${h.id}')">✎</button>
+          <button class="icon-btn" title="Delete match" onclick="askDeleteHistory('${h.id}')">✕</button>
+        </span>` : ''}
+      </div>
+      <div class="hteams"><b style="color:var(--teamA)">Team A${h.teamA.captain? ' (C: '+esc(h.teamA.captain)+')':''}:</b> ${h.teamA.players.map(esc).join(', ')}</div>
+      <div class="hteams"><b style="color:var(--teamB)">Team B${h.teamB.captain? ' (C: '+esc(h.teamB.captain)+')':''}:</b> ${h.teamB.players.map(esc).join(', ')}</div>
+      ${h.subs && h.subs.length ? `<div class="hteams">Bench: ${h.subs.map(esc).join(', ')}</div>` : ''}
+      ${h.winner ? `<div class="hteams" style="color:var(--good);">🏆 ${h.winner==='draw'?'Draw':'Team '+h.winner.toUpperCase()+' won'}${(h.scoreA!=null && h.scoreB!=null)?' '+h.scoreA+'–'+h.scoreB:''}</div>` : ''}
+      ${h.scorers && h.scorers.length ? `<div class="hteams">Scorers: ${h.scorers.map(s=>esc(playerName(s.playerId))+' ('+s.goals+')').join(', ')}</div>` : ''}
+      ${h.assists && h.assists.length ? `<div class="hteams">Assists: ${h.assists.map(a=>esc(playerName(a.playerId))+' ('+a.assists+')').join(', ')}</div>` : ''}
+      ${pendingDeleteId===h.id ? `
+      <div class="banner amber" style="margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <span>Delete this match? Its stats and any chemistry it created will be undone.</span>
+        <span class="row-controls">
+          <button class="btn btn-sm btn-ghost" onclick="cancelDeleteHistory()">Cancel</button>
+          <button class="btn btn-sm btn-danger" onclick="confirmDeleteHistory('${h.id}')">Delete</button>
+        </span>
+      </div>` : ''}
+      ${editingHistoryId===h.id ? histEditFormHtml(h) : ''}
+      ${(h.teamAIds||[]).length && (h.teamBIds||[]).length ? potmVotingHtml(h) : ''}
+    </div>`).join('') : `<div class="empty-note">No matches saved yet.</div>`;
+
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleHistory();">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between; margin-bottom:12px;">
+        <div class="panel-title" style="margin:0;">Past matches</div>
+        <button class="icon-btn" onclick="toggleHistory()">✕</button>
+      </div>
+      <div class="footer-actions" style="justify-content:flex-start; margin-bottom:12px;">
+        <button class="btn btn-sm" onclick="toggleHistory(); toggleLogMatch();">📝 Log a match played outside the app</button>
+      </div>
+      ${items}
+    </div>
+  </div>`;
+}
+
+/* ============================= Boot ============================= */
+render();
+initDb();
+</script>
+
+</body>
+</html>
