@@ -1,0 +1,6 @@
+{
+  "name": "matchday-draft-tests",
+  "private": true,
+  "description": "Automatic checks for Matchday Draft (run on GitHub before each update goes live)",
+  "dependencies": { "playwright": "1.63.0" }
+}
