@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="304d688685">
+<meta name="md-build" content="795bbbbbf2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -679,11 +679,24 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .pod .pn{font-weight:700; font-size:.9rem; margin:4px 0 2px; overflow-wrap:anywhere;}
   .pod .ps{font-size:.72rem; color:var(--chalk-dim);}
   .pod .pw{font-family:'Space Mono',monospace; font-weight:700; color:var(--good); font-size:1rem;}
+  .pg-nav{display:flex; gap:6px; margin:0 0 16px; padding:5px; background:var(--panel); border:1px solid var(--line); border-radius:999px; overflow-x:auto;}
+  .pg-nav button{flex:1 1 0; font:inherit; font-size:.8rem; font-weight:600; color:var(--chalk-dim); background:transparent; border:0; border-radius:999px; padding:9px 6px; cursor:pointer; white-space:nowrap;}
+  .pg-nav button.active{background:var(--amber); color:var(--amber-ink);}
+  .page-head{margin:4px 0 6px;}
+  .page-head h2{font-family:'Teko',sans-serif; font-size:2.2rem; line-height:1; margin:0;}
+  .page-head p{margin:4px 0 0; color:var(--chalk-dim); font-size:.85rem;}
+  .page-card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:16px;}
+  .back-link{font:inherit; font-size:.85rem; font-weight:600; color:var(--chalk-dim); background:none; border:0; padding:4px 0 10px; cursor:pointer;}
+  .pod .pod-av{width:34px; height:34px; border-radius:50%; margin:0 auto 4px; background:var(--panel); border:1px solid var(--line-strong); display:flex; align-items:center; justify-content:center; font-family:'Teko',sans-serif; font-size:1.2rem;}
+  .pod.first .pod-av{background:var(--amber); color:var(--amber-ink); border-color:var(--amber);}
+  .pod .pod-pos{margin-top:4px;}
+  .stand-row .rk{text-align:center; font-family:'Space Mono',monospace; color:var(--chalk-dim);}
+  .stand-row .nm{white-space:normal; line-height:1.25;}
   .stand-wrap{overflow-x:auto;}
-  .stand{min-width:290px; font-size:.8rem;}
-  .stand-row{display:grid; grid-template-columns:18px minmax(54px,1fr) repeat(6, 21px) 60px; gap:3px; align-items:center; padding:7px 2px; border-bottom:1px solid var(--line);}
+  .stand{min-width:320px; font-size:.8rem;}
+  .stand-row{display:grid; grid-template-columns:24px minmax(70px,1fr) repeat(6, 21px) 60px; gap:3px; align-items:center; padding:7px 2px; border-bottom:1px solid var(--line);}
   .stand-row.head{font-size:.62rem; text-transform:uppercase; letter-spacing:.06em; color:var(--chalk-faint);}
-  .stand-row .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .stand-row .nm{overflow:hidden;}
   .stand-row .num{text-align:center; font-family:'Space Mono',monospace; color:var(--chalk-dim);}
   .stand-row .wr{display:flex; align-items:center; gap:4px; font-family:'Space Mono',monospace; font-size:.7rem; color:var(--chalk-dim);}
   .wr-bar{flex:1; height:5px; border-radius:3px; background:var(--line); overflow:hidden;}
@@ -2764,9 +2777,11 @@ function render(){
   }
   if(shouldOfferPin() && pinOfferedFor !== pinKey(getLoginName())){ pinOfferedFor = pinKey(getLoginName()); pinModalOpen = true; }
 
-  app.innerHTML = renderTopbar() + renderTurnBanner() + renderProgress() + renderBanner() + renderBody()
-    + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal() + renderAwardsModal()
-    + renderAttendanceModal() + renderProfilePicker() + renderProfileModal() + renderPinModal() + updateToastHtml();
+  const pg = currentPage();
+  app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + (pg==='home' ? renderProgress() : '') + renderBanner()
+    + (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : renderBody())
+    + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
+    + renderAttendanceModal() + renderProfilePicker() + renderPinModal() + updateToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -2789,6 +2804,23 @@ function currentSquadName(){
   return sq ? sq.name : 'My Squad';
 }
 
+function currentPage(){ return profileId ? 'profile' : (showAwards ? 'leaderboard' : 'home'); }
+function goHome(){ showAwards=false; showAwardsCard=false; profileId=null; render(); window.scrollTo(0,0); }
+function goLeaderboard(){ profileId=null; showAwards=true; showAwardsCard=false; render(); window.scrollTo(0,0); }
+function goMyProfile(){ const id=getMyPlayerId(); if(!id) return; showAwards=false; openProfile(id); }
+function renderPageNav(){
+  const pg = currentPage();
+  const me = getMyPlayerId();
+  const dot = (me && incomingRequests(me).length) ? ' <span style="color:var(--danger);">●</span>' : '';
+  const myActive = pg==='profile' && me && profileId===me;
+  return `<nav class="pg-nav">
+    <button class="${pg==='home'?'active':''}" onclick="goHome()">⚽ Matchday</button>
+    <button class="${pg==='leaderboard'?'active':''}" onclick="goLeaderboard()">🏆 Leaderboard</button>
+    ${isHost()
+      ? `<button class="${pg==='profile'?'active':''}" onclick="toggleProfilePicker()">👤 Profiles</button>`
+      : (me ? `<button class="${myActive?'active':''}" onclick="goMyProfile()">👤 My profile${dot}</button>` : '')}
+  </nav>`;
+}
 function renderTopbar(){
   return `
   <div class="topbar">
@@ -2809,18 +2841,15 @@ function renderTopbar(){
       </div>
       <button class="btn btn-ghost btn-sm" onclick="toggleSquadManager()">⚙</button>
       ` : ''}
-      <button class="btn btn-ghost btn-sm" onclick="toggleAwards()">🏆 Awards</button>
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleAttendance()">📋 Attendance</button>` : ''}
-      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleProfilePicker()">👤 Profiles</button>` : ''}
       ${themeBtnHtml()}
       <button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>
       ${isHost() ? `
       <span class="chip" style="cursor:default;">Host</span>
       ${(isHostDevice && db) ? `<button class="btn btn-ghost btn-sm" onclick="releaseHost()" title="Log out of host mode on this device">Step down</button>` : ''}
       ` : `
-      ${getMyPlayerId() ? `<button type="button" class="btn btn-sm btn-primary" title="Your stats, head-to-head and rivalries" onclick="openProfile('${getMyPlayerId()}')">👤 My profile${incomingRequests(getMyPlayerId()).length ? ' <span style="color:var(--danger);">●</span>' : ''}</button>` : ''}
       <span class="chip" style="cursor:default;">${esc(myRoleLabel())}</span>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
       `}
@@ -3116,7 +3145,7 @@ function renderPodiumHtml(sorted, monthly){
     const id = top[i]; if(!id) return '<div></div>';
     const s = monthly[id];
     const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
-    return `<div class="pod ${i===0?'first':''}"><div class="medal">${medals[i]}</div><div class="pn">${nameLink(id)}</div><div class="pw">${wr}%</div><div class="ps">${s.wins}W · ${s.played}P</div></div>`;
+    return `<div class="pod ${i===0?'first':''}"><div class="medal">${i===0?'👑':medals[i]}</div><div class="pod-av">${esc((playerName(id)||'?').trim().charAt(0).toUpperCase())}</div><div class="pn">${nameLink(id)}</div><div class="pod-pos">${posBadges(id)}</div><div class="pw">${wr}%</div><div class="ps">${s.wins}W · ${s.played}P</div></div>`;
   };
   // classic podium order: 2nd, 1st, 3rd
   return `<div class="podium">${card(1)}${card(0)}${card(2)}</div>`;
@@ -3161,8 +3190,8 @@ function renderStatsTable(){
       const s = monthly[id];
       const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
       return `<div class="stand-row">
-        <span class="num">${i+1}</span>
-        <span class="nm">${nameLink(id)}${starBadge(id)}${potmCounts[id]?' 🏅'+potmCounts[id]:''}${streakBadge(id, sc.entries)}</span>
+        <span class="rk">${['🥇','🥈','🥉'][i] || (i+1)}</span>
+        <span class="nm">${nameLink(id)} ${posBadges(id)}${starBadge(id)}${potmCounts[id]?' 🏅'+potmCounts[id]:''}${streakBadge(id, sc.entries)}</span>
         <span class="num">${s.played}</span><span class="num" style="color:var(--good);">${s.wins}</span><span class="num">${s.draws}</span><span class="num" style="color:var(--danger);">${s.losses}</span><span class="num">${s.goals}</span><span class="num">${s.assists}</span>
         <span class="wr"><span class="wr-bar"><i style="width:${wr}%"></i></span>${wr}%</span>
       </div>`;
@@ -3378,7 +3407,7 @@ function renderDatabaseModal(){
 }
 
 /* ---- Awards board: open to every viewer, not just the host ---- */
-function toggleAwards(){ showAwards = !showAwards; if(!showAwards) showAwardsCard = false; render(); }
+function toggleAwards(){ showAwards = !showAwards; if(!showAwards) showAwardsCard = false; render(); window.scrollTo(0,0); }
 function toggleAwardsCard(){ showAwardsCard = !showAwardsCard; render(); }
 // The longest current win streak across the whole month, for the shareable
 // card's headline "hot streak" — the full board already shows everyone's
@@ -3429,23 +3458,19 @@ function renderAwardsCardHtml(){
     <div style="margin-top:20px; font-size:.75rem; color:var(--chalk-faint);">📸 Screenshot to share in the group chat</div>
   </div>`;
 }
-function renderAwardsModal(){
-  if(!showAwards) return '';
+function renderLeaderboardPage(){
   const tabs = [['month','Month'],['season','Season'],['all','All-time'],['rivals','⚔️ Rivals']];
   return `
-  <div class="modal-backdrop" onclick="if(event.target===this) toggleAwards();">
-    <div class="modal">
-      <div class="row" style="justify-content:space-between; margin-bottom:4px;">
-        <div class="panel-title" style="margin:0;">🏆 Awards</div>
-        <span class="row-controls">
-          ${statsScope==='month' ? `<button class="btn btn-sm" onclick="toggleAwardsCard()">${showAwardsCard ? '📋 Full board' : '📤 Shareable card'}</button>` : ''}
-          <button class="icon-btn" onclick="toggleAwards()">✕</button>
-        </span>
-      </div>
-      <div class="panel-sub">Podium, golden boot, form and the full wins/losses table — everyone's, open to everyone. Flip between this month, the season, all-time records and rivalries.</div>
-      <div class="scope-tabs">${tabs.map(t=>`<button class="toggle-btn ${statsScope===t[0]?'active':''}" onclick="setStatsScope('${t[0]}')">${t[1]}</button>`).join('')}</div>
-      ${statsScope==='rivals' ? renderRivalsBoard() : (showAwardsCard && statsScope==='month' ? renderAwardsCardHtml() : renderStatsTable())}
+  <div class="page-head">
+    <div class="row" style="justify-content:space-between; align-items:flex-start;">
+      <h2>Player Standings</h2>
+      ${statsScope==='month' ? `<button class="btn btn-sm" onclick="toggleAwardsCard()">${showAwardsCard ? '📋 Full board' : '📤 Shareable card'}</button>` : ''}
     </div>
+    <p>Ranked by wins, then win rate and goals. Flip between this month, the season, all-time records and rivalries. Tap a name to open that player's profile.</p>
+  </div>
+  <div class="scope-tabs">${tabs.map(t=>`<button class="toggle-btn ${statsScope===t[0]?'active':''}" onclick="setStatsScope('${t[0]}')">${t[1]}</button>`).join('')}</div>
+  <div class="page-card">
+    ${statsScope==='rivals' ? renderRivalsBoard() : (showAwardsCard && statsScope==='month' ? renderAwardsCardHtml() : renderStatsTable())}
   </div>`;
 }
 
@@ -4151,9 +4176,10 @@ function renderHistoryModal(){
 /* ============================= Player profile ============================= */
 function openProfile(id, tab){
   if(!id || !findPlayer(id)) return;
-  profileId = id; profileTab = tab || 'stats'; render();
+  showHistory = false; showAttendance = false; profilePickerOpen = false;
+  profileId = id; profileTab = tab || 'stats'; render(); window.scrollTo(0,0);
 }
-function closeProfile(){ profileId = null; render(); }
+function closeProfile(){ profileId = null; render(); window.scrollTo(0,0); }
 function toggleProfilePicker(){ profilePickerOpen = !profilePickerOpen; render(); }
 function renderProfilePicker(){
   if(!profilePickerOpen) return '';
@@ -4197,10 +4223,10 @@ function computeProfile(id){
   });
   return out;
 }
-function renderProfileModal(){
+function renderProfilePage(){
   if(!profileId) return '';
   const p = findPlayer(profileId);
-  if(!p){ profileId = null; return ''; }
+  if(!p){ profileId = null; return renderBody(); }
   const s = computeProfile(p.id);
   const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
   const isMe = !!db && getMyPlayerId()===p.id;
@@ -4212,8 +4238,9 @@ function renderProfileModal(){
   const hostLine = isHost() ? `<div class="host-detail" style="margin-top:10px;">${idx>=0 ? 'Rank #'+(idx+1)+' of '+SQUAD.players.length : 'Not ranked yet'}${p.star?' · ⭐ star player':''}${p.unavailable?' · unavailable':''}</div>` : '';
   const tile = (v,l)=>`<div class="pf-tile"><b>${v}</b><span>${l}</span></div>`;
   return `
-  <div class="modal-backdrop" onclick="if(event.target===this) closeProfile();">
-    <div class="modal">
+  <button type="button" class="back-link" onclick="closeProfile()">◂ Back${showAwards ? ' to leaderboard' : ''}</button>
+  <div class="page-card">
+    <div>
       <div class="row" style="justify-content:space-between; align-items:flex-start;">
         <div class="pf-head">
           <div class="pf-avatar">${esc((p.name||'?').trim().charAt(0).toUpperCase())}</div>
@@ -4222,7 +4249,6 @@ function renderProfileModal(){
             <div class="badge-row" style="margin-top:4px;">${posBadges(p.id)}${starBadge(p.id)}</div>
           </div>
         </div>
-        <button class="icon-btn" onclick="closeProfile()">✕</button>
       </div>
       ${hostLine}
       ${profileTabsHtml(p, isMe)}
@@ -4377,6 +4403,8 @@ function checkTurnAlert(){
     if(key !== lastTurnKey){
       lastTurnKey = key;
       if(alertsOn){ buzz(); beep(); notifyTurn(info); }
+      // a captain browsing the leaderboard/profile gets pulled back to the auction
+      if(currentPage()!=='home') setTimeout(goHome, 0);
     }
     if(document.hidden && alertsOn) startTitleFlash();
   }else{
