@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="0c693f6bc9">
+<meta name="md-build" content="304d688685">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -878,6 +878,7 @@ let pinStep = null;          // login: {name} while we wait for that player's PI
 let pinDraft = '', pinError = '';
 let pinFails = 0, pinLockUntil = 0;
 let pinModalOpen = false, pinSetDraft = '', pinSetError = '', pinOfferedFor = null, pinResetArm = null;
+let profilePickerOpen = false;
 let profileId = null;        // player whose profile card is open
 let installHelp = false, deferredInstall = null;
 let updateReady = false;     // the service worker found a newer version of the app
@@ -2765,7 +2766,7 @@ function render(){
 
   app.innerHTML = renderTopbar() + renderTurnBanner() + renderProgress() + renderBanner() + renderBody()
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal() + renderAwardsModal()
-    + renderAttendanceModal() + renderProfileModal() + renderPinModal() + updateToastHtml();
+    + renderAttendanceModal() + renderProfilePicker() + renderProfileModal() + renderPinModal() + updateToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -2812,13 +2813,15 @@ function renderTopbar(){
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleAttendance()">📋 Attendance</button>` : ''}
+      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleProfilePicker()">👤 Profiles</button>` : ''}
       ${themeBtnHtml()}
       <button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>
       ${isHost() ? `
       <span class="chip" style="cursor:default;">Host</span>
       ${(isHostDevice && db) ? `<button class="btn btn-ghost btn-sm" onclick="releaseHost()" title="Log out of host mode on this device">Step down</button>` : ''}
       ` : `
-      <button type="button" class="chip" title="Your profile" onclick="openProfile('${getMyPlayerId()}')">${esc(myRoleLabel())}${incomingRequests(getMyPlayerId()).length ? ' <span style="color:var(--danger);">●</span>' : ''}</button>
+      ${getMyPlayerId() ? `<button type="button" class="btn btn-sm btn-primary" title="Your stats, head-to-head and rivalries" onclick="openProfile('${getMyPlayerId()}')">👤 My profile${incomingRequests(getMyPlayerId()).length ? ' <span style="color:var(--danger);">●</span>' : ''}</button>` : ''}
+      <span class="chip" style="cursor:default;">${esc(myRoleLabel())}</span>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
       `}
     </div>
@@ -4151,6 +4154,22 @@ function openProfile(id, tab){
   profileId = id; profileTab = tab || 'stats'; render();
 }
 function closeProfile(){ profileId = null; render(); }
+function toggleProfilePicker(){ profilePickerOpen = !profilePickerOpen; render(); }
+function renderProfilePicker(){
+  if(!profilePickerOpen) return '';
+  const list = (SQUAD.players||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) toggleProfilePicker();">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+        <div class="panel-title" style="margin:0;">Player profiles</div>
+        <button class="icon-btn" onclick="toggleProfilePicker()">✕</button>
+      </div>
+      <div class="hint" style="margin-bottom:10px;">Tap a player to see their stats, head-to-head record and rivalries.</div>
+      ${list.length ? list.map(p=>`<button type="button" class="btn" style="width:100%; justify-content:flex-start; margin-bottom:6px;" onclick="profilePickerOpen=false; openProfile('${p.id}')">${esc(p.name)}</button>`).join('') : '<div class="hint">No players yet.</div>'}
+    </div>
+  </div>`;
+}
 
 // Everything below comes from saved match history, newest first.
 function computeProfile(id){
@@ -4223,6 +4242,10 @@ function renderProfileModal(){
           <div class="mate-pct">${Math.round(100*m.w/m.g)}%</div>
         </div>`).join('') : `<div class="empty-note">Play a couple more matches together to see who ${esc(p.name)} wins with.</div>`}
       ` : `<div class="empty-note" style="margin-top:14px;">No matches recorded for ${esc(p.name)} yet.</div>`}
+      ${(()=>{ const g = chemistryGroupOf(p.id); const links = g ? g.filter(x=>x!==p.id && findPlayer(x)) : [];
+        return `<div class="pf-section">🔗 Chemistry link</div>` + (links.length
+          ? `<div class="panel-sub" style="margin:0 0 6px;">${isMe?'You are':esc(p.name)+' is'} linked with these players, so the team split tries to keep them on the same side.</div>` + links.map(id=>`<div class="mate-row"><div>${nameLink(id)}</div><div class="mate-pct">🔗</div></div>`).join('')
+          : `<div class="empty-note">No chemistry link set up for ${isMe?'you':esc(p.name)}.</div>`); })()}
       ${isMe ? attendanceLineHtml(p.id) : ''}
       ${isMe ? `
       <div class="pf-section">Your login</div>
