@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="403b6dc0bc">
+<meta name="md-build" content="32ffdcff74">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -18,6 +18,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
+try{ document.documentElement.setAttribute('data-sport', localStorage.getItem('md_sport') || 'football'); }catch(e){}
 try{ document.documentElement.setAttribute('data-theme', localStorage.getItem('md_theme')==='dark' ? 'dark' : 'light'); }
 catch(e){ document.documentElement.setAttribute('data-theme','light'); }
 try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.setAttribute('content', document.documentElement.getAttribute('data-theme')==='dark' ? '#0b1812' : '#ffffff'); }catch(e){}
@@ -90,6 +91,38 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
     --scrim:rgba(2,10,7,.62);
     color-scheme:dark;
   }
+
+
+  /* ---------- per-sport themes (colours + faint court/pitch art) ---------- */
+  :root{ --sport-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 260' fill='none' stroke='%2313804f' stroke-width='3'%3E%3Crect x='10' y='10' width='380' height='240' rx='4'/%3E%3Cline x1='200' y1='10' x2='200' y2='250'/%3E%3Ccircle cx='200' cy='130' r='42'/%3E%3Crect x='10' y='75' width='52' height='110'/%3E%3Crect x='338' y='75' width='52' height='110'/%3E%3Ccircle cx='200' cy='130' r='3' fill='%2313804f'/%3E%3C/svg%3E"); }
+  :root[data-theme="dark"]{ --sport-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 260' fill='none' stroke='%23ffffff' stroke-width='3'%3E%3Crect x='10' y='10' width='380' height='240' rx='4'/%3E%3Cline x1='200' y1='10' x2='200' y2='250'/%3E%3Ccircle cx='200' cy='130' r='42'/%3E%3Crect x='10' y='75' width='52' height='110'/%3E%3Crect x='338' y='75' width='52' height='110'/%3E%3Ccircle cx='200' cy='130' r='3' fill='%23ffffff'/%3E%3C/svg%3E"); }
+  :root[data-sport="cricket"]{ --amber:#c8312f; --amber-ink:#ffffff; --accent-text:#a3221f; --pitch-bg:#fffdf7; --stripe:#fffdf7; --panel-2:#f6f1e6; --sport-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300' fill='none' stroke='%238a6d3b' stroke-width='3'%3E%3Cellipse cx='200' cy='150' rx='188' ry='138'/%3E%3Cellipse cx='200' cy='150' rx='95' ry='72' stroke-dasharray='8 8'/%3E%3Crect x='186' y='105' width='28' height='90'/%3E%3Cline x1='194' y1='100' x2='194' y2='112'/%3E%3Cline x1='200' y1='100' x2='200' y2='112'/%3E%3Cline x1='206' y1='100' x2='206' y2='112'/%3E%3Cline x1='194' y1='188' x2='194' y2='200'/%3E%3Cline x1='200' y1='188' x2='200' y2='200'/%3E%3Cline x1='206' y1='188' x2='206' y2='200'/%3E%3C/svg%3E"); }
+  :root[data-theme="dark"][data-sport="cricket"]{ --amber:#ff6b5e; --amber-ink:#2a0805; --accent-text:#ff8a7e; --pitch-bg:#14110b; --stripe:#14110b; --panel:#221d13; --panel-2:#1a160e; --sport-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300' fill='none' stroke='%23ffffff' stroke-width='3'%3E%3Cellipse cx='200' cy='150' rx='188' ry='138'/%3E%3Cellipse cx='200' cy='150' rx='95' ry='72' stroke-dasharray='8 8'/%3E%3Crect x='186' y='105' width='28' height='90'/%3E%3Cline x1='194' y1='100' x2='194' y2='112'/%3E%3Cline x1='200' y1='100' x2='200' y2='112'/%3E%3Cline x1='206' y1='100' x2='206' y2='112'/%3E%3Cline x1='194' y1='188' x2='194' y2='200'/%3E%3Cline x1='200' y1='188' x2='200' y2='200'/%3E%3Cline x1='206' y1='188' x2='206' y2='200'/%3E%3C/svg%3E"); }
+  :root[data-sport="basketball"]{ --amber:#ee6a1f; --amber-ink:#ffffff; --accent-text:#b44a0c; --pitch-bg:#fffaf5; --stripe:#fffaf5; --panel-2:#f8efe6; --sport-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 240' fill='none' stroke='%23b8541a' stroke-width='3'%3E%3Crect x='10' y='10' width='380' height='220' rx='4'/%3E%3Cline x1='200' y1='10' x2='200' y2='230'/%3E%3Ccircle cx='200' cy='120' r='34'/%3E%3Cpath d='M10 30 H40 A90 90 0 0 1 40 210 H10'/%3E%3Cpath d='M390 30 H360 A90 90 0 0 0 360 210 H390'/%3E%3Crect x='10' y='88' width='62' height='64'/%3E%3Crect x='328' y='88' width='62' height='64'/%3E%3C/svg%3E"); }
+  :root[data-theme="dark"][data-sport="basketball"]{ --amber:#ff8c42; --amber-ink:#2b1300; --accent-text:#ffa266; --pitch-bg:#150e09; --stripe:#150e09; --panel:#24170f; --panel-2:#1b120b; --sport-art: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 240' fill='none' stroke='%23ffffff' stroke-width='3'%3E%3Crect x='10' y='10' width='380' height='220' rx='4'/%3E%3Cline x1='200' y1='10' x2='200' y2='230'/%3E%3Ccircle cx='200' cy='120' r='34'/%3E%3Cpath d='M10 30 H40 A90 90 0 0 1 40 210 H10'/%3E%3Cpath d='M390 30 H360 A90 90 0 0 0 360 210 H390'/%3E%3Crect x='10' y='88' width='62' height='64'/%3E%3Crect x='328' y='88' width='62' height='64'/%3E%3C/svg%3E"); }
+  body::before{content:''; position:fixed; inset:0; z-index:-1; pointer-events:none; background:var(--sport-art) center 62% / min(860px, 150vw) no-repeat; opacity:.07;}
+  :root[data-theme="dark"] body::before{opacity:.06;}
+  .game-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-top:14px;}
+  .game-card{position:relative; text-align:left; border:2px solid var(--line-strong); border-radius:var(--radius); padding:18px 16px; cursor:pointer; color:#fff; overflow:hidden; font:inherit; min-height:132px;}
+  .game-card .gi{font-size:2.2rem; line-height:1;}
+  .game-card .gn{font-family:'Teko',sans-serif; font-size:1.7rem; line-height:1; margin-top:8px;}
+  .game-card .gs{font-size:.78rem; opacity:.9; margin-top:4px;}
+  .game-card .gt{position:absolute; top:12px; right:12px; font-size:.7rem; font-weight:700; padding:3px 8px; border-radius:999px; background:rgba(255,255,255,.22);}
+  .game-card.current{outline:3px solid var(--chalk); outline-offset:2px;}
+  .game-card.football{background:linear-gradient(135deg,#13804f,#0b5a37);}
+  .game-card.cricket{background:linear-gradient(135deg,#c8312f,#7a1712);}
+  .game-card.basketball{background:linear-gradient(135deg,#ee6a1f,#9c3c08);}
+  .game-chip{display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:.82rem; font-weight:700; border:1px solid var(--line-strong); background:var(--panel); color:var(--chalk); border-radius:999px; padding:6px 12px; cursor:pointer;}
+  .sport-pick{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:8px 0 12px;}
+  .sport-pick button{font:inherit; border:2px solid var(--line-strong); border-radius:var(--radius-sm); background:var(--panel); color:var(--chalk); padding:12px 6px; cursor:pointer; font-weight:600;}
+  .sport-pick button.active{border-color:var(--amber); background:var(--amber); color:var(--amber-ink);}
+  .sport-pick span{display:block; font-size:1.6rem;}
+  .ps-table{width:100%; border-collapse:collapse; font-size:.82rem; margin-top:6px;}
+  .ps-table th{font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; color:var(--chalk-faint); padding:4px 2px; text-align:center; font-weight:600;}
+  .ps-table th:first-child, .ps-table td:first-child{text-align:left;}
+  .ps-table td{padding:3px 2px; border-top:1px solid var(--line);}
+  .ps-table input{width:52px; padding:6px 4px; text-align:center;}
+  .ps-table tr.tsep td{font-weight:700; font-size:.75rem; padding-top:10px; border-top:0;}
 
   *{box-sizing:border-box;}
   body{
@@ -777,7 +810,7 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
 <script>
 /* ============================= State & storage ============================= */
 
-const FORMATS = [5,6,7,8];
+let FORMATS = [5,6,7,8];
 
 // Per-match state — who's playing, what mode, how the draft/split is going.
 // The player database itself (SQUAD) lives separately and persists forever.
@@ -896,6 +929,11 @@ function sha256Hex(str){
   return H.map(v=>(v>>>0).toString(16).padStart(8,'0')).join('');
 }
 function isHostCode(x){ return sha256Hex(String(x)) === HOST_HASH; }
+let pickedSquadId = null;        // the game this phone chose (each person picks their own)
+try{ pickedSquadId = localStorage.getItem('md_squad') || null; }catch(e){}
+let appCurrentId = null, squadsLoaded = false, matchLoadedFor = null;
+let gamePickerOpen = false, newGameDraft = null;
+let allRosters = {}, allRostersLoaded = false, rosterLoadTimer = null, loginRetryPending = false;
 let scrollToPoll = false;
 let pendingVote = null;          // {poll, vote} from a one-tap answer link, applied once logged in
 let pollVotesLoaded = false;
@@ -925,6 +963,15 @@ try{
   }
   // one-tap answer links from the WhatsApp message: ?poll=<id>&vote=<option|no>
   const qs = new URLSearchParams(window.location.search||'');
+  if(qs.get('g')){
+    pickedSquadId = qs.get('g');
+    try{ localStorage.setItem('md_squad', pickedSquadId); }catch(e){}
+    qs.delete('g');
+    if(!qs.has('poll') && !qs.has('vote')){
+      const rest0 = qs.toString();
+      history.replaceState(null, '', window.location.pathname + (rest0 ? '?'+rest0 : '') + (window.location.hash||''));
+    }
+  }
   if(qs.has('poll') || qs.has('vote')){
     scrollToPoll = true;
     if(qs.get('vote')) pendingVote = {poll: qs.get('poll')||'', vote: qs.get('vote')};
@@ -958,7 +1005,7 @@ let dbPosFilter = 'ALL';     // host-only position filter
 let statsMonth = null;       // 'YYYY-MM' the leaderboard/awards are showing — defaults to the current month
 let addForm = {positions:['MID'], attributes:{}, unknown:false, star:false}; // draft state for the add-player form
 let guestForm = {name:'', positions:['MID']}; // draft state for the "add a guest for today" quick-add
-let resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false}; // draft match-result form
+let resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false, ps:{}, wktsA:'', wktsB:''}; // draft match-result form
 let logDraft = null;         // draft state for "log a match played outside the app"
 let editingHistoryId = null; // history entry currently being edited, or null
 let historyEditDraft = null; // draft state for the history-edit form
@@ -1053,15 +1100,87 @@ function nameLink(id, label){
   if(!p || isGuest(id)) return t;
   return `<button type="button" class="pname-link" onclick="event.stopPropagation(); openProfile('${id}')">${t}</button>`;
 }
+/* ============================= Sports =============================
+   Each game (squad) has a sport. The sport decides the look, positions,
+   skills, team sizes and the two headline stats. Internally every sport
+   reuses the same four position slots (GK/DEF/MID/FWD) and the same two stat
+   slots (goals/assists), so the draft, balancing, leaderboards and records
+   all work unchanged and just show the sport's own words. */
+const SPORTS = {
+  football: {
+    key:'football', name:'Football', icon:'⚽', play:'football', field:'pitch', kickoff:'Ready for kickoff',
+    pos:{GK:['GK','Goalkeeper'], DEF:['DEF','Defender'], MID:['MID','Midfielder'], FWD:['FWD','Forward']},
+    posOrder:['GK','DEF','MID','FWD'], keeper:true, keeperWord:'goalkeepers',
+    attrs:[['shooting','Shooting'],['tackling','Tackling'],['speed','Speed'],['dribbling','Dribbling'],['stamina','Stamina'],['passing','Passing'],['game_iq','Game knowledge']],
+    formats:[5,6,7,8], defFormat:6,
+    s1:{name:'Goals', one:'goal', many:'goals', icon:'⚽', col:'⚽', award:'Golden boot', awardIcon:'🥇'},
+    s2:{name:'Assists', one:'assist', many:'assists', icon:'🅰️', col:'🅰', award:'Playmaker', awardIcon:'🎯'},
+    draw:'Draw', scoreWord:'Score', lengthLabel:'Match length (min)', lengthPh:'e.g. 60', lengthToMin:1, marginUnit:1,
+    feat1Min:2, feat2Min:99, bigWinMin:2, highScoreMin:4,
+    modeBlurb:'each side gets a fair share of defenders, midfielders and forwards, and a keeper whenever two or more are available',
+    cols:null, extras:[]
+  },
+  cricket: {
+    key:'cricket', name:'Cricket', icon:'🏏', play:'cricket', field:'field', kickoff:'Ready for the first ball',
+    pos:{GK:['WK','Wicketkeeper'], DEF:['BOWL','Bowler'], MID:['AR','All-rounder'], FWD:['BAT','Batter']},
+    posOrder:['FWD','DEF','MID','GK'], keeper:true, keeperWord:'wicketkeepers',
+    attrs:[['batting','Batting'],['power','Power hitting'],['pace','Pace bowling'],['spin','Spin bowling'],['fielding','Fielding'],['keeping','Keeping'],['game_iq','Game sense']],
+    formats:[6,8,11], defFormat:8,
+    s1:{name:'Runs', one:'run', many:'runs', icon:'🏏', col:'🏏', award:'Orange cap', awardIcon:'🟠'},
+    s2:{name:'Wickets', one:'wicket', many:'wickets', icon:'🎯', col:'🎯', award:'Purple cap', awardIcon:'🟣'},
+    draw:'Tie', scoreWord:'Runs', lengthLabel:'Overs per side', lengthPh:'e.g. 10', lengthToMin:4, marginUnit:10,
+    feat1Min:30, feat2Min:3, bigWinMin:20, highScoreMin:150, teamWickets:true,
+    modeBlurb:'each side gets a fair share of batters, bowlers and all-rounders, and a wicketkeeper whenever two or more are available',
+    cols:[{k:'s1',h:'Runs'},{k:'b',h:'Balls'},{k:'s2',h:'Wkts'},{k:'c',h:'Catches'}],
+    extras:[{k:'b',name:'balls faced'},{k:'c',name:'catches'}]
+  },
+  basketball: {
+    key:'basketball', name:'Basketball', icon:'🏀', play:'basketball', field:'court', kickoff:'Ready for tip-off',
+    pos:{GK:['C','Center'], DEF:['F','Forward'], MID:['G','Guard'], FWD:['WG','Wing']},
+    posOrder:['MID','DEF','GK'], keeper:false, keeperWord:'centers',
+    attrs:[['shooting','Shooting'],['three','3-point'],['handles','Handles'],['defense','Defense'],['rebounding','Rebounding'],['passing','Passing'],['athletic','Athleticism']],
+    formats:[3,4,5], defFormat:5,
+    s1:{name:'Points', one:'point', many:'points', icon:'🏀', col:'🏀', award:'Top scorer', awardIcon:'🔥'},
+    s2:{name:'Rebounds', one:'rebound', many:'rebounds', icon:'💪', col:'💪', award:'Board king', awardIcon:'👑'},
+    draw:'Tie', scoreWord:'Points', lengthLabel:'Length (min)', lengthPh:'e.g. 40', lengthToMin:1, marginUnit:5,
+    feat1Min:15, feat2Min:8, bigWinMin:10, highScoreMin:80,
+    modeBlurb:'each side gets a fair share of guards, forwards and centers',
+    cols:[{k:'s1',h:'Pts'},{k:'s2',h:'Reb'},{k:'ast',h:'Ast'}],
+    extras:[{k:'ast',name:'assists'}]
+  }
+};
+let SPORT = SPORTS.football;
+function sportOfSquad(id){ const sq = (squadsList||[]).find(x=>x.id===id); return (sq && SPORTS[sq.sport]) ? sq.sport : 'football'; }
+function syncSport(){
+  const key = sportOfSquad(currentSquadId);
+  if(SPORT.key === key && document.documentElement.getAttribute('data-sport') === key) return;
+  applySport(key);
+}
+function applySport(key){
+  SPORT = SPORTS[key] || SPORTS.football;
+  Object.keys(SPORT.pos).forEach(k=>{ if(POSITIONS[k]){ POSITIONS[k].label = SPORT.pos[k][0]; POSITIONS[k].full = SPORT.pos[k][1]; } });
+  POSITION_ORDER = SPORT.posOrder.slice();
+  ATTRIBUTES = {}; SPORT.attrs.forEach(([k,l])=>{ ATTRIBUTES[k] = {label:l}; });
+  ATTRIBUTE_ORDER = SPORT.attrs.map(a=>a[0]);
+  FORMATS = SPORT.formats.slice();
+  try{ document.documentElement.setAttribute('data-sport', SPORT.key); localStorage.setItem('md_sport', SPORT.key); }catch(e){}
+}
+function noKeeperNote(ids, long){
+  if(!SPORT.keeper || !ids.length || positionCounts(ids).GK > 0) return '';
+  return long ? ' · <span style="color:var(--danger)">no ' + SPORT.keeperWord + ' selected</span>' : ' · ⚠ no ' + POSITIONS.GK.label;
+}
+function s1Text(n){ return n + ' ' + (n===1 ? SPORT.s1.one : SPORT.s1.many); }
+function s2Text(n){ return n + ' ' + (n===1 ? SPORT.s2.one : SPORT.s2.many); }
+
 const POSITIONS = {
   GK:  {label:'GK',  full:'Goalkeeper', color:'var(--pos-gk)'},
   DEF: {label:'DEF', full:'Defender',   color:'var(--pos-def)'},
   MID: {label:'MID', full:'Midfielder', color:'var(--pos-mid)'},
   FWD: {label:'FWD', full:'Forward',    color:'var(--pos-fwd)'}
 };
-const POSITION_ORDER = ['GK','DEF','MID','FWD'];
+let POSITION_ORDER = ['GK','DEF','MID','FWD'];
 
-const ATTRIBUTES = {
+let ATTRIBUTES = {
   shooting:  {label:'Shooting'},
   tackling:  {label:'Tackling'},
   speed:     {label:'Speed'},
@@ -1070,14 +1189,15 @@ const ATTRIBUTES = {
   passing:   {label:'Passing'},
   game_iq:   {label:'Game knowledge'}
 };
-const ATTRIBUTE_ORDER = ['shooting','tackling','speed','dribbling','stamina','passing','game_iq'];
+let ATTRIBUTE_ORDER = ['shooting','tackling','speed','dribbling','stamina','passing','game_iq'];
 
 // A player can hold more than one position — positionsOf always returns a
 // non-empty array (falls back to ['MID'] for old/blank data).
 function positionsOf(id){
   const p = findPlayer(id);
   const pos = (p && Array.isArray(p.positions) && p.positions.length) ? p.positions : ['MID'];
-  return pos.filter(x=>POSITIONS[x]);
+  const ok = pos.filter(x=>POSITIONS[x] && POSITION_ORDER.includes(x));
+  return ok.length ? ok : ['MID'];
 }
 // Attributes are a {key: level} map — level 1 = has it, level 2 = "+"
 // (exceptional). Reads old array-shaped data (from before levels existed)
@@ -1105,7 +1225,7 @@ function positionCounts(ids){
 }
 function compositionLine(ids){
   const c = positionCounts(ids);
-  return POSITION_ORDER.map(p=>`${c[p]} ${p}`).join(' · ');
+  return POSITION_ORDER.map(p=>`${c[p]} ${POSITIONS[p].label}`).join(' · ');
 }
 function posBadges(id){
   return positionsOf(id).map(pos=>{
@@ -1122,7 +1242,7 @@ function attrChips(id){
 function statsLine(id){
   const s = statsOf(id);
   if(!s.played) return '';
-  return `<div class="stats-line">${s.played} played · ${s.wins}W ${s.draws}D ${s.losses}L${s.goals?' · '+s.goals+' ⚽':''}</div>`;
+  return `<div class="stats-line">${s.played} played · ${s.wins}W ${s.draws}D ${s.losses}L${s.goals?' · '+s.goals+' '+SPORT.s1.icon:''}</div>`;
 }
 function chemistryGroupOf(id){
   return (SQUAD.chemistryGroups||[]).find(g=>g.includes(id)) || null;
@@ -1370,6 +1490,7 @@ function subscribeToSquad(id){
   }, ()=>{ rosterLoaded = true; render(); });
   unsubMatch = db.doc('squads/'+id+'/state/match').onSnapshot(snap=>{
     S = snap.exists ? Object.assign(defaultState(), snap.data()) : defaultState();
+    matchLoadedFor = id;
     dbReady = true;
     render();
   }, ()=>{ dbReady = true; render(); });
@@ -1422,28 +1543,119 @@ async function migrateOrCreateDefaultSquad(){
   migratingSquad = false;
 }
 
-function createSquad(name){
-  name = (name||'').trim() || 'New squad';
+function loadAllRosters(){
+  if(!db) return;
+  clearTimeout(rosterLoadTimer);
+  rosterLoadTimer = setTimeout(async ()=>{
+    const out = {};
+    await Promise.all(squadsList.map(sq=> db.doc('squads/'+sq.id+'/state/roster').get().then(snap=>{
+      const d = snap.exists ? snap.data() : {};
+      out[sq.id] = (d.players||[]).concat(d.unrankedPlayers||[]).map(p=>p && p.name).filter(Boolean);
+    }).catch(()=>{ out[sq.id] = []; })));
+    allRosters = out; allRostersLoaded = true;
+    if(loginRetryPending){ loginRetryPending = false; submitLogin(); return; }
+    render();
+  }, 150);
+}
+function namesInGame(id){
+  if(id===currentSquadId) return rosterPlayersArr().map(p=>p.name);
+  return allRosters[id] || [];
+}
+function gamesForName(name){
+  const n = normName(name);
+  if(!n) return [];
+  return squadsList.filter(sq=> namesInGame(sq.id).some(x=>normName(x)===n));
+}
+function needsGamePick(){
+  return !!db && squadsLoaded && squadsList.length>1 && !pickedSquadId;
+}
+function openGamePicker(){ gamePickerOpen = true; newGameDraft = null; render(); window.scrollTo(0,0); }
+function closeGamePicker(){ gamePickerOpen = false; newGameDraft = null; render(); }
+function openNewGame(){ if(!isHost()) return; newGameDraft = {sport:'cricket', name:''}; render(); }
+function renderGamePicker(){
+  const me = getLoginName();
+  const order = ['football','cricket','basketball'];
+  const list = squadsList.slice().sort((a,b)=> order.indexOf(sportOfSquad(a.id)) - order.indexOf(sportOfSquad(b.id)) || String(a.createdAt).localeCompare(String(b.createdAt)));
+  const card = sq=>{
+    const sp = SPORTS[sportOfSquad(sq.id)];
+    const on = me && namesInGame(sq.id).some(x=>normName(x)===normName(me));
+    const n = namesInGame(sq.id).length;
+    const sub = isHost() ? (n + ' player' + (n===1?'':'s')) : (on ? 'You’re on this list ✓' : (allRostersLoaded ? 'Not on this list yet' : ''));
+    return `<button type="button" class="game-card ${sp.key} ${sq.id===currentSquadId && !needsGamePick() ? 'current' : ''}" onclick="switchSquad('${sq.id}')">
+      ${sq.id===currentSquadId && !needsGamePick() ? '<span class="gt">Now</span>' : ''}
+      <div class="gi">${sp.icon}</div>
+      <div class="gn">${esc(sq.name || sp.name)}</div>
+      <div class="gs">${sp.name}${sub ? ' · ' + sub : ''}</div>
+    </button>`;
+  };
+  const form = (isHost() && newGameDraft) ? `
+    <div class="page-card" style="margin-top:14px;">
+      <div class="panel-title" style="font-size:1.2rem;">＋ New game</div>
+      <div class="sport-pick">${order.map(k=>`<button type="button" class="${newGameDraft.sport===k?'active':''}" onclick="newGameDraft.sport='${k}'; render();"><span>${SPORTS[k].icon}</span>${SPORTS[k].name}</button>`).join('')}</div>
+      <div class="row" style="gap:8px;">
+        <input type="text" class="field-input grow" style="min-width:0;" id="newGameName" maxlength="40" placeholder="${escAttr(SPORTS[newGameDraft.sport].name + ' crew')}" value="${escAttr(newGameDraft.name)}" oninput="newGameDraft.name=this.value" onkeydown="if(event.key==='Enter') createSquad(newGameDraft.name, newGameDraft.sport);">
+        <button class="btn btn-primary" style="flex:none;" onclick="createSquad(newGameDraft.name, newGameDraft.sport)">Create</button>
+      </div>
+      <div class="panel-sub" style="margin:8px 0 0;">Each game has its own players, matches, polls and leaderboard. Add players to it from 🗂 Database once you’re in.</div>
+    </div>` : '';
+  return `
+  <div class="page-head">
+    <h2>${needsGamePick() ? 'Pick a game' : 'Games'}</h2>
+    <p>Each game has its own players, matches, polls and leaderboard. You can switch any time with the game button at the top.</p>
+  </div>
+  <div class="game-grid">
+    ${list.map(card).join('')}
+    ${isHost() && !newGameDraft ? `<button type="button" class="game-card" style="background:var(--panel); color:var(--chalk); border-style:dashed;" onclick="openNewGame()"><div class="gi">＋</div><div class="gn">Add a game</div><div class="gs" style="opacity:.7;">Football, cricket or basketball</div></button>` : ''}
+  </div>
+  ${form}
+  ${(!needsGamePick()) ? `<div class="footer-actions" style="justify-content:flex-start;"><button class="btn btn-ghost" onclick="closeGamePicker()">◂ Back</button></div>` : ''}`;
+}
+function notOnListBannerHtml(){
+  if(isHost() || !db || !getLoginName() || getMyPlayerId() || !rosterLoaded) return '';
+  return `<div class="banner amber">You’re not on the ${esc(SPORT.name)} player list here yet, so you can watch but not tick in or vote. Ask the host to add you.
+    ${squadsList.length>1 ? `<div style="margin-top:8px;"><button class="btn btn-sm" onclick="openGamePicker()">Switch game</button></div>` : ''}</div>`;
+}
+function targetSquadId(){
+  if(pickedSquadId && (!squadsLoaded || squadsList.some(s=>s.id===pickedSquadId))) return pickedSquadId;
+  return appCurrentId;
+}
+function followTarget(){
+  const id = targetSquadId();
+  if(id && id!==currentSquadId){ currentSquadId = id; matchLoadedFor = null; subscribeToSquad(id); }
+}
+function createSquad(name, sport){
+  sport = SPORTS[sport] ? sport : 'football';
+  name = (name||'').trim() || (SPORTS[sport].name + ' crew');
+  const created = new Date().toISOString();
+  const state = Object.assign(defaultState(), {format: SPORTS[sport].defFormat});
   if(db){
     const ref = db.collection('squads').doc();
-    ref.set({name, createdAt:new Date().toISOString()}).catch(()=>{});
+    ref.set({name, createdAt:created, sport}).catch(()=>{});
     db.doc('squads/'+ref.id+'/state/roster').set(defaultSquad()).catch(()=>{});
-    db.doc('squads/'+ref.id+'/state/match').set(defaultState()).catch(()=>{});
+    db.doc('squads/'+ref.id+'/state/match').set(state).catch(()=>{});
+    if(!squadsList.some(x=>x.id===ref.id)) squadsList = squadsList.concat([{id:ref.id, name, createdAt:created, sport}]);
     switchSquad(ref.id);
   }else{
     const id = 'local-' + Date.now();
-    LOCAL.squads = LOCAL.squads.concat([{id, name, createdAt:new Date().toISOString()}]);
-    LOCAL.data[id] = { squad: defaultSquad(), state: defaultState(), history: [] };
+    LOCAL.squads = LOCAL.squads.concat([{id, name, createdAt:created, sport}]);
+    LOCAL.data[id] = { squad: defaultSquad(), state, history: [] };
     squadsList = LOCAL.squads;
     switchSquad(id);
   }
-  newSquadName = '';
+  newSquadName = ''; newGameDraft = null;
 }
 function switchSquad(id){
-  if(!id || id===currentSquadId) return;
+  if(!id) return;
   if(db){
-    db.doc('app/current').set({squadId:id}).catch(()=>{});
-  }else{
+    pickedSquadId = id;
+    try{ localStorage.setItem('md_squad', id); }catch(e){}
+    gamePickerOpen = false; showAwards = false; profileId = null; pollRegister = false;
+    followTarget();
+    render();
+    return;
+  }
+  if(id===currentSquadId){ gamePickerOpen = false; render(); return; }
+  {
     LOCAL.currentSquadId = id;
     currentSquadId = id;
     const rec = LOCAL.data[id] || { squad: defaultSquad(), state: defaultState(), history: [] };
@@ -1469,10 +1681,9 @@ function deleteSquad(id){
   if(squadsList.length<=1) return; // always keep at least one squad to switch into
   if(db){
     db.doc('squads/'+id).delete().catch(()=>{});
-    if(id===currentSquadId){
-      const next = squadsList.find(s=>s.id!==id);
-      if(next) switchSquad(next.id);
-    }
+    const next = squadsList.find(s=>s.id!==id);
+    if(next && id===appCurrentId) db.doc('app/current').set({squadId: next.id}).catch(()=>{});
+    if(id===currentSquadId && next) switchSquad(next.id);
   }else{
     LOCAL.squads = LOCAL.squads.filter(s=>s.id!==id);
     delete LOCAL.data[id];
@@ -1599,14 +1810,20 @@ async function initDb(){
 
   db.collection('squads').orderBy('createdAt','asc').onSnapshot(qsnap=>{
     squadsList = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+    squadsLoaded = true;
+    if(pickedSquadId && !squadsList.some(x=>x.id===pickedSquadId)){
+      pickedSquadId = null; try{ localStorage.removeItem('md_squad'); }catch(e){}
+    }
+    followTarget();
+    loadAllRosters();
     render();
   }, ()=>{});
 
   db.doc('app/current').onSnapshot(snap=>{
     const id = snap.exists ? snap.data().squadId : null;
-    if(id && id!==currentSquadId){
-      currentSquadId = id;
-      subscribeToSquad(id);
+    appCurrentId = id;
+    if(id){
+      followTarget();
     } else if(!id){
       dbReady = true;
       migrateOrCreateDefaultSquad();
@@ -2039,7 +2256,7 @@ function reshuffleRandom(){
 
 function confirmRandom(){
   const r = S.randomResult;
-  resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false};
+  resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false, ps:{}, wktsA:'', wktsB:''};
   const id = addToHistory({
     date:new Date().toISOString(),
     format:S.format,
@@ -2172,7 +2389,7 @@ function auctionPriceMap(a){
 }
 function saveAuctionToHistory(){
   const a = S.auction;
-  resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false};
+  resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false, ps:{}, wktsA:'', wktsB:''};
   const id = addToHistory({
     date:new Date().toISOString(),
     format:S.format,
@@ -2382,7 +2599,12 @@ function currentPinStep(){
   if(n && getMyPlayerId() && pinLocked()) return {name:n};
   return null;
 }
-function isLoggedIn(){ return !!getMyPlayerId() && !pinLocked(); }
+function isLoggedIn(){
+  if(pinLocked()) return false;
+  if(getMyPlayerId()) return true;
+  // on another game's list counts too (this game just shows view-only)
+  return !!db && !!getLoginName() && (!allRostersLoaded || gamesForName(getLoginName()).length > 0);
+}
 function doLoginAs(name, hash){
   try{
     localStorage.setItem('md_login_name', name);
@@ -2393,8 +2615,21 @@ function submitLogin(){
   if(currentPinStep()){ submitPin(); return; }
   const typed = (loginDraft||'').trim();
   if(!typed){ loginError = 'Type your name first.'; render(); return; }
-  const p = findPlayerByName(typed);
+  let p = findPlayerByName(typed);
+  if(!p && db){
+    if(!allRostersLoaded){ loginError = 'Checking…'; loginRetryPending = true; loadAllRosters(); render(); return; }
+    const games = gamesForName(typed);
+    if(games.length){
+      const real = namesInGame(games[0].id).find(x=>normName(x)===normName(typed));
+      p = {name: real || typed};
+      if(!pickedSquadId && games.length===1) switchSquad(games[0].id);
+    }
+  }
   if(!p){ loginError = 'We couldn’t find “' + typed + '”. Check the spelling, or ask the host to add you.'; render(); return; }
+  if(!pickedSquadId && db && squadsList.length>1){
+    const g = gamesForName(p.name);
+    if(g.length===1) switchSquad(g[0].id);
+  }
   loginDraft = ''; loginError = '';
   if(hasPin(p.name)){
     pinStep = {name:p.name}; pinDraft = ''; pinError = '';
@@ -2512,7 +2747,7 @@ function buildTeamSheetText(){
   const when = new Date().toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'});
   const list = (ids, cap)=> ids.map((id,i)=> (i+1) + '. ' + playerName(id) + (id===cap ? ' (C)' : '')).join('\n');
   const lines = [];
-  lines.push('⚽ *Matchday* · ' + when + ' · ' + S.format + 'v' + S.format);
+  lines.push(SPORT.icon + ' *Matchday* · ' + when + ' · ' + S.format + 'v' + S.format);
   lines.push('*Team A* 🔵  vs  🔴 *Team B*');
   lines.push('');
   lines.push('🔵 *Team A*');
@@ -2527,11 +2762,11 @@ function buildTeamSheetText(){
   const h = HISTORY.find(x=>x.id===S.lastHistoryId);
   if(h && h.winner){
     lines.push('');
-    lines.push('🏆 ' + (h.winner==='draw' ? 'Draw' : 'Team '+h.winner.toUpperCase()+' won') +
+    lines.push('🏆 ' + (h.winner==='draw' ? SPORT.draw : 'Team '+h.winner.toUpperCase()+' won') +
       (h.scoreA!=null && h.scoreB!=null && h.scoreA!=='' && h.scoreB!=='' ? ' ' + h.scoreA + '–' + h.scoreB : ''));
   }
   lines.push('');
-  lines.push('See you on the pitch! 🔥');
+  lines.push('See you on the ' + SPORT.field + '! 🔥');
   return lines.join('\n');
 }
 function copyTeamSheet(){
@@ -2591,12 +2826,12 @@ function computeRankShift(teamAIds, teamBIds, winner, scoreA, scoreB, durationMi
   const winAvg = avgRank(winIds), loseAvg = avgRank(loseIds);
   const span = Math.max(1, SQUAD.players.length - 1);
 
-  const mins = Number(durationMinutes);
+  const mins = Number(durationMinutes) * (SPORT.lengthToMin||1);
   const durationFactor = (mins>0) ? clamp(mins/60, 0.4, 1.8) : 1;
 
   let marginFactor = 1;
   if(scoreA!=null && scoreB!=null && !isNaN(scoreA) && !isNaN(scoreB)){
-    marginFactor = clamp(1 + Math.abs(scoreA-scoreB)*0.15, 1, 2);
+    marginFactor = clamp(1 + (Math.abs(scoreA-scoreB)/(SPORT.marginUnit||1))*0.15, 1, 2);
   }
 
   // positive when the winners were the weaker side coming in (an upset)
@@ -2744,6 +2979,105 @@ function setAssistPlayer(i, id){ resultDraft.assists[i].playerId = id; }
 function setAssistCount(i, val){ resultDraft.assists[i].assists = Number(val)||1; }
 function skipResult(){ resultDraft.saved = true; render(); }
 
+/* ---- sport stats: cricket and basketball record a per-player sheet.
+   The two headline stats go into the same slots football uses for goals and
+   assists (so every board and record works); the rest live in h.pstats. ---- */
+function numOrNull(v){ return (v===''||v==null||isNaN(Number(v))) ? null : Number(v); }
+function setPS(which, id, k, v){
+  const d = which==='result' ? resultDraft : which==='log' ? logDraft : historyEditDraft;
+  if(!d) return;
+  d.ps = d.ps || {}; d.ps[id] = d.ps[id] || {};
+  d.ps[id][k] = (v==='' ? '' : Math.max(0, Number(v)||0));
+}
+function psToRecord(ps){
+  const scorers = [], assists = [], pstats = {};
+  Object.keys(ps||{}).forEach(id=>{
+    const r = ps[id] || {};
+    const a = Number(r.s1)||0, b = Number(r.s2)||0;
+    if(a>0) scorers.push({playerId:id, goals:a});
+    if(b>0) assists.push({playerId:id, assists:b});
+    const ex = {};
+    (SPORT.extras||[]).forEach(e=>{ const v = Number(r[e.k])||0; if(v>0) ex[e.k] = v; });
+    if(Object.keys(ex).length) pstats[id] = ex;
+  });
+  return {scorers, assists, pstats};
+}
+function recordToPs(h){
+  const ps = {};
+  (h.scorers||[]).forEach(x=>{ if(x.playerId) (ps[x.playerId] = ps[x.playerId] || {}).s1 = x.goals; });
+  (h.assists||[]).forEach(x=>{ if(x.playerId) (ps[x.playerId] = ps[x.playerId] || {}).s2 = x.assists; });
+  Object.keys(h.pstats||{}).forEach(id=>{ ps[id] = Object.assign(ps[id] || {}, h.pstats[id]); });
+  return ps;
+}
+function sportResultExtras(draft){
+  // fields to save alongside scorers/assists for non-football games
+  const out = {};
+  if(SPORT.key==='football') return out;
+  const rec = psToRecord(draft.ps);
+  out.scorers = rec.scorers; out.assists = rec.assists; out.pstats = rec.pstats;
+  if(SPORT.teamWickets){ out.wktsA = numOrNull(draft.wktsA); out.wktsB = numOrNull(draft.wktsB); }
+  return out;
+}
+function sportScoreFieldsHtml(draft, varName){
+  const w = SPORT.scoreWord;
+  return `<div class="row" style="margin-bottom:10px;">
+      <div class="field grow"><label>${w} — Team A</label><input type="number" min="0" value="${escAttr(draft.scoreA)}" oninput="${varName}.scoreA=this.value"></div>
+      ${SPORT.teamWickets ? `<div class="field grow"><label>Wickets — A</label><input type="number" min="0" max="11" value="${escAttr(draft.wktsA||'')}" oninput="${varName}.wktsA=this.value"></div>` : ''}
+      <div class="field grow"><label>${w} — Team B</label><input type="number" min="0" value="${escAttr(draft.scoreB)}" oninput="${varName}.scoreB=this.value"></div>
+      ${SPORT.teamWickets ? `<div class="field grow"><label>Wickets — B</label><input type="number" min="0" max="11" value="${escAttr(draft.wktsB||'')}" oninput="${varName}.wktsB=this.value"></div>` : ''}
+      <div class="field grow"><label>${SPORT.lengthLabel}</label><input type="number" min="0" placeholder="${SPORT.lengthPh}" value="${escAttr(draft.duration)}" oninput="${varName}.duration=this.value"></div>
+    </div>`;
+}
+function psTableHtml(which, draft, aIds, bIds){
+  const cols = SPORT.cols || [];
+  const ps = draft.ps || {};
+  const cell = (id,k)=>{ const v = ps[id] && ps[id][k]; return (v===''||v==null) ? '' : v; };
+  const row = id=>`<tr><td>${esc(playerName(id))}</td>${cols.map(c=>`<td><input type="number" min="0" inputmode="numeric" value="${cell(id,c.k)}" oninput="setPS('${which}','${id}','${c.k}',this.value)"></td>`).join('')}</tr>`;
+  const sep = (t, col)=>`<tr class="tsep"><td colspan="${cols.length+1}" style="color:${col}">${t}</td></tr>`;
+  return `<div class="field" style="margin-bottom:8px;">
+    <label>Player stats <span style="text-transform:none; letter-spacing:0; font-weight:400;">(leave blank for 0)</span></label>
+    <div style="overflow-x:auto;"><table class="ps-table">
+      <tr><th>Player</th>${cols.map(c=>`<th>${c.h}</th>`).join('')}</tr>
+      ${aIds.length ? sep('Team A','var(--teamA)') + aIds.map(row).join('') : ''}
+      ${bIds.length ? sep('Team B','var(--teamB)') + bIds.map(row).join('') : ''}
+    </table></div>
+  </div>`;
+}
+function teamScore(h, side){
+  const v = side==='a' ? h.scoreA : h.scoreB;
+  if(v==null || v==='') return '–';
+  const w = side==='a' ? h.wktsA : h.wktsB;
+  return String(v) + (SPORT.teamWickets && w!=null && w!=='' ? '/' + w : '');
+}
+// one player's line for one match, in the sport's own words
+function playerMatchLine(h, id){
+  const g = (h.scorers||[]).filter(x=>x.playerId===id).reduce((n,x)=>n+(x.goals||0),0);
+  const as = (h.assists||[]).filter(x=>x.playerId===id).reduce((n,x)=>n+(x.assists||0),0);
+  const ex = (h.pstats||{})[id] || {};
+  const parts = [];
+  if(SPORT.key==='cricket'){
+    if(g || ex.b) parts.push('🏏 ' + g + (ex.b ? ' (' + ex.b + ')' : '') + ' runs');
+    if(as) parts.push('🎯 ' + s2Text(as));
+    if(ex.c) parts.push('🧤 ' + ex.c + ' catch' + (ex.c===1 ? '' : 'es'));
+  }else if(SPORT.key==='basketball'){
+    if(g) parts.push('🏀 ' + s1Text(g));
+    if(as) parts.push('💪 ' + s2Text(as));
+    if(ex.ast) parts.push('🤝 ' + ex.ast + ' assist' + (ex.ast===1 ? '' : 's'));
+  }else{
+    if(g) parts.push('⚽ ' + s1Text(g));
+    if(as) parts.push('🅰 ' + s2Text(as));
+  }
+  return parts.join(' · ');
+}
+function historyStatsLinesHtml(h){
+  if(SPORT.key==='football'){
+    return (h.scorers && h.scorers.length ? `<div class="hteams">⚽ Scorers: ${h.scorers.map(s=>esc(playerName(s.playerId))+' ('+s.goals+')').join(', ')}</div>` : '')
+         + (h.assists && h.assists.length ? `<div class="hteams">🅰 Assists: ${h.assists.map(a=>esc(playerName(a.playerId))+' ('+a.assists+')').join(', ')}</div>` : '');
+  }
+  const ids = (h.teamAIds||[]).concat(h.teamBIds||[]).filter(id=>playerMatchLine(h,id));
+  return ids.length ? `<div class="hteams">${ids.map(id=>esc(playerName(id)) + ': ' + esc(playerMatchLine(h,id))).join('<br>')}</div>` : '';
+}
+
 function saveMatchResult(){
   const {teamAIds, teamBIds} = getCompleteTeamIds();
   const scoreA = resultDraft.scoreA===''? null : Number(resultDraft.scoreA);
@@ -2751,15 +3085,17 @@ function saveMatchResult(){
   const duration = resultDraft.duration===''? null : Number(resultDraft.duration);
   const scorers = resultDraft.scorers.filter(s=>s.playerId && s.goals>0);
   const assists = resultDraft.assists.filter(a=>a.playerId && a.assists>0);
-  updateHistoryResult(S.lastHistoryId, {winner:resultDraft.winner, scoreA, scoreB, scorers, assists, duration});
-  applyMatchOutcome(teamAIds, teamBIds, resultDraft.winner, scorers, scoreA, scoreB, duration, assists);
+  const sx = sportResultExtras(resultDraft);
+  const sc = sx.scorers || scorers, as = sx.assists || assists;
+  updateHistoryResult(S.lastHistoryId, Object.assign({winner:resultDraft.winner, scoreA, scoreB, scorers:sc, assists:as, duration}, sx));
+  applyMatchOutcome(teamAIds, teamBIds, resultDraft.winner, sc, scoreA, scoreB, duration, as);
   resultDraft.saved = true;
   render();
 }
 
 /* ---- log a match played without the app ---- */
 function freshLogDraft(){
-  return { format:S.format, teamA:[], teamB:[], winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[] };
+  return { format:S.format, teamA:[], teamB:[], winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], ps:{}, wktsA:'', wktsB:'' };
 }
 function toggleLogMatch(){
   if(!isHost()){ showLogMatch = false; return; }
@@ -2799,9 +3135,11 @@ function saveLoggedMatch(){
     teamA:{players:logDraft.teamA.map(playerName)}, teamAIds:logDraft.teamA,
     teamB:{players:logDraft.teamB.map(playerName)}, teamBIds:logDraft.teamB,
     subs:[], subIds:[],
-    winner: logDraft.winner, scoreA, scoreB, duration, scorers, assists
+    winner: logDraft.winner, scoreA, scoreB, duration, scorers: (sportResultExtras(logDraft).scorers || scorers), assists: (sportResultExtras(logDraft).assists || assists),
+    ...(SPORT.key==='football' ? {} : {pstats: sportResultExtras(logDraft).pstats}),
+    ...(SPORT.teamWickets ? {wktsA: numOrNull(logDraft.wktsA), wktsB: numOrNull(logDraft.wktsB)} : {})
   });
-  applyMatchOutcome(logDraft.teamA, logDraft.teamB, logDraft.winner, scorers, scoreA, scoreB, duration, assists);
+  applyMatchOutcome(logDraft.teamA, logDraft.teamB, logDraft.winner, (sportResultExtras(logDraft).scorers || scorers), scoreA, scoreB, duration, (sportResultExtras(logDraft).assists || assists));
   showLogMatch = false;
   render();
 }
@@ -2893,7 +3231,7 @@ function updateToastHtml(){
 function renderLoading(){
   return `
   <div class="login-wrap">
-    <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
+    <div class="brand"><span class="ball">${SPORT.icon}</span><div><h1>Matchday Draft</h1></div></div>
     <div class="login-foot" style="margin:-10px 0 14px;">${themeBtnHtml()}</div>
     <div class="login-card"><p class="login-sub" style="margin:0;">${slowConnect ? 'Still connecting… check your internet connection, this can take a moment.' : 'Connecting…'}</p></div>
   </div>`;
@@ -2912,7 +3250,7 @@ function renderLogin(){
   if(step){
     return `
   <div class="login-wrap">
-    <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
+    <div class="brand"><span class="ball">${SPORT.icon}</span><div><h1>Matchday Draft</h1></div></div>
     <div class="login-card">
       <h2>Enter your PIN</h2>
       <p class="login-sub">Hi <b>${esc(step.name)}</b> — your name is protected with a 4-digit PIN.</p>
@@ -2931,7 +3269,7 @@ function renderLogin(){
   }
   return `
   <div class="login-wrap">
-    <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
+    <div class="brand"><span class="ball">${SPORT.icon}</span><div><h1>Matchday Draft</h1></div></div>
     <div class="login-card">
       <h2>Log in</h2>
       ${pendingVote ? `<p class="login-sub" style="color:var(--chalk); font-weight:600;">📊 Log in once and your poll answer saves straight away.</p>` : ''}
@@ -2951,6 +3289,7 @@ function renderLogin(){
 }
 
 function render(){
+  syncSport();
   const app = document.getElementById('app');
   document.body.classList.toggle('is-host', isHost());
   const pageScrollY = window.scrollY;
@@ -2958,7 +3297,7 @@ function render(){
   const modalScrollTop = openModal ? openModal.scrollTop : null;
   // keep the cursor in a login box if a live update re-renders mid-typing
   const ae = document.activeElement;
-  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput' || ae.id==='pinInput' || ae.id==='pinSetInput' || ae.id==='hostConfirmInput' || ae.id==='pollQInput' || ae.id==='pollCustomInput')) ? ae.id : null;
+  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput' || ae.id==='pinInput' || ae.id==='pinSetInput' || ae.id==='hostConfirmInput' || ae.id==='pollQInput' || ae.id==='pollCustomInput' || ae.id==='newGameName')) ? ae.id : null;
   const keepPos = keepId ? ae.selectionStart : null;
 
   if(!(dbReady && rosterLoaded && (pinsLoaded || !db))){ app.innerHTML = renderLoading(); return; }
@@ -2973,8 +3312,8 @@ function render(){
   if(shouldOfferPin() && pinOfferedFor !== pinKey(getLoginName())){ pinOfferedFor = pinKey(getLoginName()); pinModalOpen = true; }
 
   const pg = currentPage();
-  app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + (pg==='home' ? renderProgress() : '') + renderBanner()
-    + hostLockBannerHtml() + (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (renderPollCard() + renderBody()))
+  app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick())) ? renderProgress() : '') + renderBanner()
+    + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (notOnListBannerHtml() + (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (renderPollCard() + renderBody()))))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
     + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
@@ -2988,7 +3327,7 @@ function render(){
     if(newModal) newModal.scrollTop = modalScrollTop;
   }
   checkTurnAlert();
-  if(pendingVote && pollVotesLoaded && getMyPlayerId()) setTimeout(applyPendingVote, 0);
+  if(pendingVote && pollVotesLoaded && getMyPlayerId() && (!db || matchLoadedFor===currentSquadId)) setTimeout(applyPendingVote, 0);
   else if(!pendingVote && document.getElementById('pollCard')) markPollSeen();
   if(scrollToPoll){
     const pc = document.getElementById('pollCard');
@@ -3015,7 +3354,7 @@ function renderPageNav(){
   const dot = (me && incomingRequests(me).length) ? ' <span style="color:var(--danger);">●</span>' : '';
   const myActive = pg==='profile' && me && profileId===me;
   return `<nav class="pg-nav">
-    <button class="${pg==='home'?'active':''}" onclick="goHome()">⚽ Matchday${pollNeedsMyAnswer() ? ' <span style="color:var(--danger);">●</span>' : ''}</button>
+    <button class="${pg==='home'?'active':''}" onclick="goHome()">${SPORT.icon} Matchday${pollNeedsMyAnswer() ? ' <span style="color:var(--danger);">●</span>' : ''}</button>
     <button class="${pg==='leaderboard'?'active':''}" onclick="goLeaderboard()">🏆 Leaderboard</button>
     ${isHost()
       ? `<button class="${pg==='profile'?'active':''}" onclick="toggleProfilePicker()">👤 Profiles</button>`
@@ -3026,22 +3365,15 @@ function renderTopbar(){
   return `
   <div class="topbar">
     <div class="brand">
-      <span class="ball">⚽</span>
+      <span class="ball">${SPORT.icon}</span>
       <div>
         <h1>Matchday Draft</h1>
         <small>${isHost() ? esc(currentSquadName()) + ' · ' : ''}${esc(String(S.format))}v${esc(String(S.format))} · ${S.mode ? esc(S.mode) : 'no mode yet'}</small>
       </div>
     </div>
     <div class="row" style="gap:8px;">
-      ${isHost() ? `
-      <div class="role-pill squad-pill">
-        <label>Squad</label>
-        <select onchange="switchSquad(this.value)">
-          ${squadsList.map(s=>`<option value="${s.id}" ${s.id===currentSquadId?'selected':''}>${esc(s.name)}</option>`).join('')}
-        </select>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="toggleSquadManager()">⚙</button>
-      ` : ''}
+      ${(isHost() || squadsList.length>1) ? `<button type="button" class="game-chip" title="Switch game" onclick="openGamePicker()">${SPORT.icon} ${esc(isHost() ? currentSquadName() : SPORT.name)} ▾</button>` : ''}
+      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleSquadManager()">⚙</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleAttendance()">📋 Attendance</button>` : ''}
@@ -3382,12 +3714,12 @@ function renderStatsTable(){
   </div>
   ${!ids.length ? `<div class="empty-note" style="margin-top:8px;">${esc(sc.empty)}</div>` : `
   ${sc.kind!=='month' ? renderRecordsHtml(sc.entries, sc.kind) : ''}
-  ${sc.kind==='month' && topScorerGoals>0 ? `<div class="panel-sub" style="margin:8px 0 2px;">🥇 Golden boot: <b style="color:var(--chalk);">${nameLink(topScorer)}</b> — ${topScorerGoals} goal${topScorerGoals===1?'':'s'}</div>` : ''}
-  ${sc.kind==='month' && topAssisterCount>0 ? `<div class="panel-sub" style="margin:2px 0;">🎯 Playmaker: <b style="color:var(--chalk);">${nameLink(topAssister)}</b> — ${topAssisterCount} assist${topAssisterCount===1?'':'s'}</div>` : ''}
+  ${sc.kind==='month' && topScorerGoals>0 ? `<div class="panel-sub" style="margin:8px 0 2px;">${SPORT.s1.awardIcon} ${SPORT.s1.award}: <b style="color:var(--chalk);">${nameLink(topScorer)}</b> — ${s1Text(topScorerGoals)}</div>` : ''}
+  ${sc.kind==='month' && topAssisterCount>0 ? `<div class="panel-sub" style="margin:2px 0;">${SPORT.s2.awardIcon} ${SPORT.s2.award}: <b style="color:var(--chalk);">${nameLink(topAssister)}</b> — ${s2Text(topAssisterCount)}</div>` : ''}
   ${sc.kind==='month' && topPotmCount>0 ? `<div class="panel-sub" style="margin:2px 0 8px;">🏅 Most POTMs: <b style="color:var(--chalk);">${nameLink(topPotm)}</b> — ${topPotmCount}</div>` : ''}
   ${renderPodiumHtml(sorted, monthly)}
   <div class="stand-wrap"><div class="stand">
-    <div class="stand-row head"><span>#</span><span>Player</span><span class="num">P</span><span class="num">W</span><span class="num">D</span><span class="num">L</span><span class="num">⚽</span><span class="num">🅰</span><span>Win rate</span></div>
+    <div class="stand-row head"><span>#</span><span>Player</span><span class="num">P</span><span class="num">W</span><span class="num">D</span><span class="num">L</span><span class="num">${SPORT.s1.col}</span><span class="num">${SPORT.s2.col}</span><span>Win rate</span></div>
     ${sorted.map((id,i)=>{
       const s = monthly[id];
       const wr = s.played ? Math.round(100*s.wins/s.played) : 0;
@@ -3468,7 +3800,7 @@ function renderHubHtml(){
   </div>` : '';
   return `
   <div class="hub-hero">
-    <span class="hub-pill">Ready for kickoff</span>
+    <span class="hub-pill">${SPORT.kickoff}</span>
     <h2>No live draft running right now</h2>
     <p>As soon as the host starts the team split, the live draft appears here automatically. Tick yourself in below if you're playing today.</p>
   </div>
@@ -3532,7 +3864,7 @@ function renderSetup(){
       const rankIdx = sel.map(id=>SQUAD.players.findIndex(p=>p.id===id)).filter(i=>i>=0);
       const avgRank = rankIdx.length ? (rankIdx.reduce((a,b)=>a+b,0)/rankIdx.length+1).toFixed(1) : '–';
       return `<div class="host-detail">
-        <b>${sel.length}</b> selected of ${need} needed · ${compositionLine(sel)}${(sel.length && positionCounts(sel).GK===0) ? ' · <span style="color:var(--danger)">no goalkeepers selected</span>':''}<br>
+        <b>${sel.length}</b> selected of ${need} needed · ${compositionLine(sel)}${noKeeperNote(sel, true)}<br>
         ⭐ stars in: ${starsSel} · average rank of those in: #${avgRank} · bench if everyone plays: ${Math.max(0, sel.length-need)}
       </div>`;
     })() : ''}
@@ -3639,8 +3971,8 @@ function renderAwardsCardHtml(){
   const topPotmCount = topPotm ? potmCounts[topPotm] : 0;
   const streak = computeTopStreak(month);
   const rows = [
-    topScorerGoals>0 ? {icon:'🥇', label:'Golden boot', value: playerName(topScorer)+' — '+topScorerGoals+' goal'+(topScorerGoals===1?'':'s')} : null,
-    topAssisterCount>0 ? {icon:'🎯', label:'Playmaker', value: playerName(topAssister)+' — '+topAssisterCount+' assist'+(topAssisterCount===1?'':'s')} : null,
+    topScorerGoals>0 ? {icon:SPORT.s1.awardIcon, label:SPORT.s1.award, value: playerName(topScorer)+' — '+s1Text(topScorerGoals)} : null,
+    topAssisterCount>0 ? {icon:SPORT.s2.awardIcon, label:SPORT.s2.award, value: playerName(topAssister)+' — '+s2Text(topAssisterCount)} : null,
     topPotmCount>0 ? {icon:'🏅', label:'Most POTMs', value: playerName(topPotm)+' — '+topPotmCount} : null,
     streak ? {icon:'🔥', label:'Hot streak', value: playerName(streak.id)+' — '+streak.streak+' wins in a row'} : null
   ].filter(Boolean);
@@ -3668,7 +4000,7 @@ function renderLeaderboardPage(){
       <h2>Player Standings</h2>
       ${statsScope==='month' ? `<button class="btn btn-sm" onclick="toggleAwardsCard()">${showAwardsCard ? '📋 Full board' : '📤 Shareable card'}</button>` : ''}
     </div>
-    <p>Ranked by wins, then win rate and goals. Flip between this month, the season, all-time records and rivalries. Tap a name to open that player's profile.</p>
+    <p>Ranked by wins, then win rate and ${SPORT.s1.many}. Flip between this month, the season, all-time records and rivalries. Tap a name to open that player's profile.</p>
   </div>
   <div class="scope-tabs">${tabs.map(t=>`<button class="toggle-btn ${statsScope===t[0]?'active':''}" onclick="setStatsScope('${t[0]}')">${t[1]}</button>`).join('')}</div>
   <div class="page-card">
@@ -3723,7 +4055,7 @@ function renderModeChoice(){
       <div class="mode-card" onclick="chooseMode('random')">
         <div class="emoji">🎲</div>
         <h3>Random split</h3>
-        <p>Instantly balances two teams by ability rank and by position — each side gets a fair share of defenders, midfielders and forwards, and a keeper whenever two or more are available. Reshuffle as many times as you like before confirming.</p>
+        <p>Instantly balances two teams by ability rank and by position — ${SPORT.modeBlurb}. Reshuffle as many times as you like before confirming.</p>
       </div>
       <div class="mode-card" onclick="chooseMode('draft')">
         <div class="emoji">🧢</div>
@@ -3742,8 +4074,7 @@ function teamListHtml(ids){
   return `<ul>${ids.map(id=>`<li><span>${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}</span></li>`).join('')}</ul>`;
 }
 function teamCompHtml(ids){
-  const noGk = positionCounts(ids).GK === 0;
-  return `<span class="team-comp">${compositionLine(ids)}${noGk ? ' · ⚠ no GK' : ''}</span>`;
+  return `<span class="team-comp">${compositionLine(ids)}${noKeeperNote(ids)}</span>`;
 }
 
 // A quick "how even is this?" readout for the host to eyeball before
@@ -4022,8 +4353,7 @@ function renderComplete(){
     }).join('')}</ul>`;
   }
   function compAndBudget(ids, budgetLeft){
-    const noGk = positionCounts(ids).GK === 0;
-    return `<span class="team-comp">${compositionLine(ids)}${noGk?' · ⚠ no GK':''}${budgetLeft!=null?' · ₹'+budgetLeft+' left':''}</span>`;
+    return `<span class="team-comp">${compositionLine(ids)}${noKeeperNote(ids)}${budgetLeft!=null?' · ₹'+budgetLeft+' left':''}</span>`;
   }
 
   return `
@@ -4091,9 +4421,10 @@ function renderResultForm(teamAIds, teamBIds){
       <div class="chip-toggle-row">
         <button type="button" class="chip-toggle ${resultDraft.winner==='a'?'active':''}" onclick="setResultWinner('a')">Team A</button>
         <button type="button" class="chip-toggle ${resultDraft.winner==='b'?'active':''}" onclick="setResultWinner('b')">Team B</button>
-        <button type="button" class="chip-toggle ${resultDraft.winner==='draw'?'active':''}" onclick="setResultWinner('draw')">Draw</button>
+        <button type="button" class="chip-toggle ${resultDraft.winner==='draw'?'active':''}" onclick="setResultWinner('draw')">${SPORT.draw}</button>
       </div>
     </div>
+    ${SPORT.key!=='football' ? sportScoreFieldsHtml(resultDraft, 'resultDraft') + psTableHtml('result', resultDraft, teamAIds, teamBIds) : `
     <div class="row" style="margin-bottom:10px;">
       <div class="field grow">
         <label>Score — Team A</label>
@@ -4117,7 +4448,7 @@ function renderResultForm(teamAIds, teamBIds){
       <label>Assists</label>
       <div style="display:flex; flex-direction:column; gap:6px;">${assistRows}</div>
       <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-top:6px;" onclick="addAssistRow()">+ Add assist</button>
-    </div>
+    </div>`}
     <div class="footer-actions">
       <button class="btn btn-ghost" onclick="skipResult()">Skip for now</button>
       <button class="btn btn-primary" onclick="saveMatchResult()">💾 Save result</button>
@@ -4179,9 +4510,10 @@ function renderLogMatchModal(){
         <div class="chip-toggle-row">
           <button type="button" class="chip-toggle ${logDraft.winner==='a'?'active':''}" onclick="logSetWinner('a')">Team A</button>
           <button type="button" class="chip-toggle ${logDraft.winner==='b'?'active':''}" onclick="logSetWinner('b')">Team B</button>
-          <button type="button" class="chip-toggle ${logDraft.winner==='draw'?'active':''}" onclick="logSetWinner('draw')">Draw</button>
+          <button type="button" class="chip-toggle ${logDraft.winner==='draw'?'active':''}" onclick="logSetWinner('draw')">${SPORT.draw}</button>
         </div>
       </div>
+      ${SPORT.key!=='football' ? sportScoreFieldsHtml(logDraft, 'logDraft') + psTableHtml('log', logDraft, logDraft.teamA, logDraft.teamB) : `
       <div class="row" style="margin-bottom:10px;">
         <div class="field grow"><label>Score — Team A</label><input type="number" min="0" value="${logDraft.scoreA}" oninput="logDraft.scoreA=this.value"></div>
         <div class="field grow"><label>Score — Team B</label><input type="number" min="0" value="${logDraft.scoreB}" oninput="logDraft.scoreB=this.value"></div>
@@ -4196,7 +4528,7 @@ function renderLogMatchModal(){
         <label>Assists</label>
         <div style="display:flex; flex-direction:column; gap:6px;">${assistRows}</div>
         <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-top:6px;" onclick="logAddAssistRow()">+ Add assist</button>
-      </div>
+      </div>`}
       <div class="footer-actions">
         <button class="btn btn-primary" ${(logDraft.teamA.length<1||logDraft.teamB.length<1)?'disabled':''} onclick="saveLoggedMatch()">💾 Save match</button>
       </div>
@@ -4218,7 +4550,9 @@ function startEditHistory(id){
     scoreB: h.scoreB!=null ? String(h.scoreB) : '',
     duration: h.duration!=null ? String(h.duration) : '',
     scorers: (h.scorers||[]).map(s=>({playerId:s.playerId, goals:s.goals})),
-    assists: (h.assists||[]).map(a=>({playerId:a.playerId, assists:a.assists}))
+    assists: (h.assists||[]).map(a=>({playerId:a.playerId, assists:a.assists})),
+    ps: recordToPs(h),
+    wktsA: h.wktsA!=null ? String(h.wktsA) : '', wktsB: h.wktsB!=null ? String(h.wktsB) : ''
   };
   render();
 }
@@ -4246,8 +4580,10 @@ function saveEditHistory(id){
   const duration = historyEditDraft.duration===''? null : Number(historyEditDraft.duration);
   const scorers = historyEditDraft.scorers.filter(s=>s.playerId && s.goals>0);
   const assists = historyEditDraft.assists.filter(a=>a.playerId && a.assists>0);
-  updateHistoryResult(id, {winner:historyEditDraft.winner, scoreA, scoreB, duration, scorers, assists});
-  applyMatchOutcome(h.teamAIds||[], h.teamBIds||[], historyEditDraft.winner, scorers, scoreA, scoreB, duration, assists);
+  const sx = sportResultExtras(historyEditDraft);
+  const sc = sx.scorers || scorers, as = sx.assists || assists;
+  updateHistoryResult(id, Object.assign({winner:historyEditDraft.winner, scoreA, scoreB, duration, scorers:sc, assists:as}, sx));
+  applyMatchOutcome(h.teamAIds||[], h.teamBIds||[], historyEditDraft.winner, sc, scoreA, scoreB, duration, as);
   editingHistoryId = null;
   historyEditDraft = null;
   render();
@@ -4289,8 +4625,9 @@ function histEditFormHtml(h){
       <div class="chip-toggle-row">
         <button type="button" class="chip-toggle ${historyEditDraft.winner==='a'?'active':''}" onclick="setHistEditWinner('a')">Team A</button>
         <button type="button" class="chip-toggle ${historyEditDraft.winner==='b'?'active':''}" onclick="setHistEditWinner('b')">Team B</button>
-        <button type="button" class="chip-toggle ${historyEditDraft.winner==='draw'?'active':''}" onclick="setHistEditWinner('draw')">Draw</button>
+        <button type="button" class="chip-toggle ${historyEditDraft.winner==='draw'?'active':''}" onclick="setHistEditWinner('draw')">${SPORT.draw}</button>
       </div>
+      ${SPORT.key!=='football' ? sportScoreFieldsHtml(historyEditDraft, 'historyEditDraft') + psTableHtml('hist', historyEditDraft, h.teamAIds||[], h.teamBIds||[]) : `
       <div class="row" style="margin:8px 0;">
         <div class="field grow"><label>Score — A</label><input type="number" min="0" value="${historyEditDraft.scoreA}" oninput="historyEditDraft.scoreA=this.value"></div>
         <div class="field grow"><label>Score — B</label><input type="number" min="0" value="${historyEditDraft.scoreB}" oninput="historyEditDraft.scoreB=this.value"></div>
@@ -4301,7 +4638,7 @@ function histEditFormHtml(h){
       <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-bottom:8px;" onclick="histEditAddScorerRow()">+ Add scorer</button>
       <div class="edit-label">Assists</div>
       <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:6px;">${assistRows}</div>
-      <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-bottom:8px;" onclick="histEditAddAssistRow()">+ Add assist</button>
+      <button type="button" class="btn btn-sm" style="align-self:flex-start; margin-bottom:8px;" onclick="histEditAddAssistRow()">+ Add assist</button>`}
       <div class="footer-actions">
         <button class="btn btn-ghost btn-sm" onclick="cancelEditHistory()">Cancel</button>
         <button class="btn btn-primary btn-sm" onclick="saveEditHistory('${h.id}')">💾 Save changes</button>
@@ -4313,13 +4650,13 @@ function histToggle(id, open){ if(open) histOpen.add(id); else histOpen.delete(i
 function matchModeLabel(m){ return m==='draft' ? 'Captains’ auction' : m==='random' ? 'Random split' : String(m||'Match'); }
 function resultChipHtml(h){
   if(!h.winner) return `<span class="chip" style="cursor:default;">Result pending</span>`;
-  if(h.winner==='draw') return `<span class="chip" style="cursor:default;">Draw</span>`;
+  if(h.winner==='draw') return `<span class="chip" style="cursor:default;">${SPORT.draw}</span>`;
   const col = h.winner==='a' ? 'var(--teamA)' : 'var(--teamB)';
   return `<span class="chip" style="cursor:default; border-color:${col}; color:${col};">Team ${h.winner.toUpperCase()} victory</span>`;
 }
 function scorelineHtml(h, cls){
   const has = h.scoreA!=null && h.scoreB!=null;
-  return `<div class="${cls}"><span class="tn a">Team A</span><span class="sc">${has ? esc(String(h.scoreA)) : '–'} : ${has ? esc(String(h.scoreB)) : '–'}</span><span class="tn b">Team B</span></div>`;
+  return `<div class="${cls}"><span class="tn a">Team A</span><span class="sc">${has ? esc(teamScore(h,'a')) : '–'} : ${has ? esc(teamScore(h,'b')) : '–'}</span><span class="tn b">Team B</span></div>`;
 }
 function lineupLinks(ids, names){
   names = names || [];
@@ -4346,8 +4683,7 @@ function renderHistoryModal(){
         <div class="hteams"><b style="color:var(--teamA)">Team A${h.teamA.captain? ' (C: '+esc(h.teamA.captain)+')':''}:</b> ${lineupLinks(h.teamAIds, h.teamA.players)}</div>
         <div class="hteams"><b style="color:var(--teamB)">Team B${h.teamB.captain? ' (C: '+esc(h.teamB.captain)+')':''}:</b> ${lineupLinks(h.teamBIds, h.teamB.players)}</div>
         ${h.subs && h.subs.length ? `<div class="hteams">Bench: ${h.subs.map(esc).join(', ')}</div>` : ''}
-        ${h.scorers && h.scorers.length ? `<div class="hteams">⚽ Scorers: ${h.scorers.map(s=>esc(playerName(s.playerId))+' ('+s.goals+')').join(', ')}</div>` : ''}
-        ${h.assists && h.assists.length ? `<div class="hteams">🅰 Assists: ${h.assists.map(a=>esc(playerName(a.playerId))+' ('+a.assists+')').join(', ')}</div>` : ''}
+        ${historyStatsLinesHtml(h)}
       </details>
       ${pendingDeleteId===h.id ? `
       <div class="banner amber" style="margin-top:8px; display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -4380,7 +4716,7 @@ function renderHistoryModal(){
    The host makes a poll here and shares it to the WhatsApp group; friends tap the
    link and answer in the app. The app knows the whole roster, so it can list exactly
    who hasn't replied. Picking the winning slot ticks those players in for the match. */
-const POLL_DEFAULT_Q = 'Who’s in for football?';
+function pollDefaultQ(){ return 'Who’s in for ' + SPORT.play + '?'; }
 function pollEligible(){ return rosterPlayersArr().filter(p=>!p.unavailable && !p.guest); }
 function pollVotesMap(){
   const p = S.poll, m = {};
@@ -4422,7 +4758,7 @@ function siteBase(){
   const live = /^https:$/.test(location.protocol) && /\.github\.io$/.test(location.hostname);
   return live ? location.origin + location.pathname.replace(/index\.html$/, '') : SITE_URL;
 }
-function pollLinkFor(poll, vote){ return siteBase() + '?poll=' + encodeURIComponent(poll.id) + (vote ? '&vote=' + encodeURIComponent(vote) : ''); }
+function pollLinkFor(poll, vote){ return siteBase() + '?g=' + encodeURIComponent(currentSquadId||'') + '&poll=' + encodeURIComponent(poll.id) + (vote ? '&vote=' + encodeURIComponent(vote) : ''); }
 function pollLink(vote){ return S.poll ? pollLinkFor(S.poll, vote) : siteBase(); }
 function infoToastHtml(){
   return infoToast ? `<div class="update-toast" role="status"><span>${esc(infoToast)}</span><button class="btn btn-sm" onclick="infoToast=null; render();">OK</button></div>` : '';
@@ -4430,7 +4766,7 @@ function infoToastHtml(){
 function showInfo(msg){ infoToast = msg; clearTimeout(infoTimer); infoTimer = setTimeout(()=>{ infoToast = null; render(); }, 6000); }
 function applyPendingVote(){
   const pv = pendingVote; if(!pv) return;
-  const me = getMyPlayerId(); if(!me || !pollVotesLoaded) return;
+  const me = getMyPlayerId(); if(!me || !pollVotesLoaded || (db && matchLoadedFor!==currentSquadId)) return;
   pendingVote = null;
   const p = S.poll;
   if(!p || !pollVisible() || (pv.poll && pv.poll !== p.id)){ showInfo('That poll has finished. Here’s the latest one.'); render(); return; }
@@ -4462,7 +4798,7 @@ function pollPresetSlots(){
 }
 function openPollForm(){
   if(!isHost()) return;
-  pollDraft = {q: POLL_DEFAULT_Q, opts: [], custom: ''}; pollFormErr = ''; pollFormOpen = true; render();
+  pollDraft = {q: pollDefaultQ(), opts: [], custom: ''}; pollFormErr = ''; pollFormOpen = true; render();
 }
 function togglePollDraftOpt(label){
   const i = pollDraft.opts.indexOf(label);
@@ -4480,7 +4816,7 @@ function addPollDraftCustom(){
 }
 // Every answer gets its own link: one tap opens the app and saves that answer.
 function pollShareText(poll){
-  const lines = ['⚽ *' + poll.q + '*'];
+  const lines = [SPORT.icon + ' *' + poll.q + '*'];
   if(poll.opts.length > 1){
     lines.push('Tap every time that works for you:', '');
     poll.opts.forEach(o=>{ lines.push('🕒 *' + o.label + '*', pollLinkFor(poll, o.id), ''); });
@@ -4498,7 +4834,7 @@ function createPoll(share){
   if(!pollDraft.opts.length){ pollFormErr = 'Pick or type at least one time.'; render(); return; }
   const poll = {
     id: 'p' + Date.now().toString(36),
-    q: (pollDraft.q||'').trim().slice(0,80) || POLL_DEFAULT_Q,
+    q: (pollDraft.q||'').trim().slice(0,80) || pollDefaultQ(),
     opts: pollDraft.opts.map((label,i)=>({id:'o'+(i+1), label})),
     status: 'open', decided: null, createdAt: new Date().toISOString(), decidedAt: null
   };
@@ -4897,6 +5233,27 @@ function renderProfilePicker(){
 }
 
 // Everything below comes from saved match history, newest first.
+function profileSportExtrasHtml(id){
+  if(SPORT.key==='football') return '';
+  let best1 = 0, best2 = 0, runsWithBalls = 0, balls = 0, catches = 0, ast = 0, games = 0;
+  HISTORY.forEach(h=>{
+    const A = h.teamAIds||[], B = h.teamBIds||[];
+    if(!A.includes(id) && !B.includes(id)) return;
+    games++;
+    const g = (h.scorers||[]).filter(x=>x.playerId===id).reduce((n,x)=>n+(x.goals||0),0);
+    const w = (h.assists||[]).filter(x=>x.playerId===id).reduce((n,x)=>n+(x.assists||0),0);
+    const ex = (h.pstats||{})[id] || {};
+    best1 = Math.max(best1, g); best2 = Math.max(best2, w);
+    if(ex.b){ balls += ex.b; runsWithBalls += g; }
+    catches += ex.c||0; ast += ex.ast||0;
+  });
+  if(!games) return '';
+  const tile = (v,l)=>`<div class="pf-tile"><b>${v}</b><span>${l}</span></div>`;
+  if(SPORT.key==='cricket'){
+    return `<div class="pf-grid">${tile(best1,'Highest score')}${tile(best2 ? best2+' wkts' : '–','Best bowling')}${tile(balls ? Math.round(100*runsWithBalls/balls) : '–','Strike rate')}${tile(catches,'Catches')}</div>`;
+  }
+  return `<div class="pf-grid">${tile(best1,'Best game (pts)')}${tile(ast,'Assists')}${tile(games ? (ast/games).toFixed(1) : '–','Assists / game')}</div>`;
+}
 function computeProfile(id){
   const out = {played:0, wins:0, draws:0, losses:0, goals:0, assists:0, potm:0, form:[], mates:{}};
   HISTORY.forEach(h=>{
@@ -4955,11 +5312,11 @@ function profileMatchesHtml(p, isMe){
     if(h.winner==='draw') res = 'D';
     else if(h.winner==='a' || h.winner==='b') res = h.winner===side ? 'W' : 'L';
     const hasScore = h.scoreA!=null && h.scoreA!=='' && h.scoreB!=null && h.scoreB!=='';
-    const score = hasScore ? `Team A ${h.scoreA} – ${h.scoreB} Team B`
-      : (h.winner==='draw' ? 'Draw' : h.winner==='a' ? 'Team A won' : h.winner==='b' ? 'Team B won' : 'No result yet');
+    const score = hasScore ? `Team A ${teamScore(h,'a')} – ${teamScore(h,'b')} Team B`
+      : (h.winner==='draw' ? SPORT.draw : h.winner==='a' ? 'Team A won' : h.winner==='b' ? 'Team B won' : 'No result yet');
     const g = (h.scorers||[]).filter(x=>x.playerId===p.id).reduce((n,x)=>n+(x.goals||0),0);
     const as = (h.assists||[]).filter(x=>x.playerId===p.id).reduce((n,x)=>n+(x.assists||0),0);
-    const extra = [g ? `⚽ ${g} goal${g===1?'':'s'}` : '', as ? `🅰 ${as} assist${as===1?'':'s'}` : ''].filter(Boolean).join(' · ');
+    const extra = playerMatchLine(h, p.id);
     const when = new Date(h.date).toLocaleDateString(undefined,{day:'numeric', month:'short'});
     return `<div class="pm-row">
       <span class="form-chip ${res}">${res==='N'?'–':res}</span>
@@ -5016,9 +5373,10 @@ function renderProfilePage(){
       ${s.played ? `
       <div class="pf-grid">
         ${tile(s.played,'Played')}${tile(wr+'%','Win rate')}${tile(s.wins+'-'+s.draws+'-'+s.losses,'W-D-L')}
-        ${tile(s.goals,'Goals')}${tile(s.assists,'Assists')}${tile(s.potm,'POTM')}
+        ${tile(s.goals,SPORT.s1.name)}${tile(s.assists,SPORT.s2.name)}${tile(s.potm,'POTM')}
       </div>
-      ${s.played>0 && s.goals>0 ? `<div class="panel-sub" style="margin:6px 0 0;">${(s.goals/s.played).toFixed(1)} goals per match</div>` : ''}
+      ${s.played>0 && s.goals>0 ? `<div class="panel-sub" style="margin:6px 0 0;">${(s.goals/s.played).toFixed(1)} ${SPORT.s1.many} per match</div>` : ''}
+      ${profileSportExtrasHtml(p.id)}
       <div class="pf-section">Recent form <span style="text-transform:none; letter-spacing:0;">(latest first)</span></div>
       ${s.form.length ? `<div class="form-row">${s.form.map(r=>`<span class="form-chip ${r}">${r}</span>`).join('')}</div>` : `<div class="empty-note">No results recorded yet.</div>`}
       <div class="pf-section">Best teammates</div>
@@ -5119,9 +5477,9 @@ function notifyTurn(info){
     const opts = {body, tag:'md-turn', renotify:true, icon:'icon-192.png', vibrate:[200,100,200]};
     if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
       navigator.serviceWorker.getRegistration().then(reg=>{
-        if(reg && reg.showNotification) reg.showNotification('Your turn ⚽', opts); else new Notification('Your turn ⚽', opts);
+        if(reg && reg.showNotification) reg.showNotification('Your turn ' + SPORT.icon, opts); else new Notification('Your turn ' + SPORT.icon, opts);
       }).catch(()=>{});
-    }else new Notification('Your turn ⚽', opts);
+    }else new Notification('Your turn ' + SPORT.icon, opts);
   }catch(e){}
 }
 function closeTurnNotifications(){
@@ -5281,8 +5639,8 @@ function computeRecords(entries, minGames){
     ids.forEach(id=>{ const v = fn(id); if(v>best){ best = v; holders = [id]; } else if(v===best) holders.push(id); });
     if(holders.length && best >= (min==null ? 1 : min)) out.push({icon, label, value: fmt ? fmt(best) : String(best), holders});
   };
-  top('⚽', 'Most goals', id=>stats[id].goals);
-  top('🅰️', 'Most assists', id=>stats[id].assists);
+  top(SPORT.s1.icon, 'Most ' + SPORT.s1.many, id=>stats[id].goals);
+  top(SPORT.s2.icon, 'Most ' + SPORT.s2.many, id=>stats[id].assists);
   top('🏆', 'Most wins', id=>stats[id].wins);
   top('👟', 'Most matches', id=>stats[id].played);
   top('📈', 'Best win rate', id=> stats[id].played>=minGames ? Math.round(100*stats[id].wins/stats[id].played) : -1, v=>v+'%', 0);
@@ -5296,7 +5654,14 @@ function computeRecords(entries, minGames){
     if(s.goals>bestGoals){ bestGoals = s.goals; goalHolders = [s.playerId]; }
     else if(s.goals===bestGoals && !goalHolders.includes(s.playerId)) goalHolders.push(s.playerId);
   }));
-  if(bestGoals>=2) out.push({icon:'🎯', label:'Most goals in a match', value:bestGoals+' goals', holders:goalHolders});
+  if(bestGoals>=SPORT.feat1Min) out.push({icon:'🎯', label:(SPORT.key==='cricket' ? 'Highest score' : 'Most ' + SPORT.s1.many + ' in a match'), value:s1Text(bestGoals), holders:goalHolders});
+  let best2 = 0, best2H = [];
+  entries.forEach(h=>(h.assists||[]).forEach(a=>{
+    if(!a.playerId || isGuest(a.playerId) || !a.assists) return;
+    if(a.assists>best2){ best2 = a.assists; best2H = [a.playerId]; }
+    else if(a.assists===best2 && !best2H.includes(a.playerId)) best2H.push(a.playerId);
+  }));
+  if(best2>=SPORT.feat2Min) out.push({icon:SPORT.s2.icon, label:(SPORT.key==='cricket' ? 'Best bowling' : 'Most ' + SPORT.s2.many + ' in a match'), value:s2Text(best2), holders:best2H});
   let bigMargin = 0, bigH = null, highTotal = 0, highH = null;
   entries.forEach(h=>{
     if(typeof h.scoreA!=='number' || typeof h.scoreB!=='number') return;
@@ -5305,8 +5670,8 @@ function computeRecords(entries, minGames){
     if(tot>highTotal){ highTotal = tot; highH = h; }
   });
   const dstr = h=> new Date(h.date).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
-  if(bigH && bigMargin>=2) out.push({icon:'💥', label:'Biggest win', value:Math.max(bigH.scoreA,bigH.scoreB)+'–'+Math.min(bigH.scoreA,bigH.scoreB), holders:[], note:'Team '+(bigH.scoreA>bigH.scoreB?'A':'B')+' · '+dstr(bigH)});
-  if(highH && highTotal>=4) out.push({icon:'🎆', label:'Highest-scoring game', value:highTotal+' goals', holders:[], note:highH.scoreA+'–'+highH.scoreB+' · '+dstr(highH)});
+  if(bigH && bigMargin>=SPORT.bigWinMin) out.push({icon:'💥', label:'Biggest win', value:Math.max(bigH.scoreA,bigH.scoreB)+'–'+Math.min(bigH.scoreA,bigH.scoreB), holders:[], note:'Team '+(bigH.scoreA>bigH.scoreB?'A':'B')+' · '+dstr(bigH)});
+  if(highH && highTotal>=SPORT.highScoreMin) out.push({icon:'🎆', label:'Highest-scoring game', value:s1Text(highTotal), holders:[], note:highH.scoreA+'–'+highH.scoreB+' · '+dstr(highH)});
   return out;
 }
 function renderRecordsHtml(entries, kind){
