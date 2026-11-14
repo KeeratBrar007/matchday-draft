@@ -33,12 +33,23 @@ const STUB = "window.__opened=[]; window.open=(u)=>{ window.__opened.push(u); re
  await H.click(`.live-pick button:has-text("${await H.evaluate((id)=>playerName(id), tA[1])}")`); await wait(400);
  const sA = await A.$eval('.live-score',e=>e.innerText.replace(/\s+/g,''));
  ok(/TeamA1:0TeamB/i.test(sA), 'Arjun’s phone shows 1 : 0 straight away: '+sA);
- ok(new RegExp('⚽ ' + await H.evaluate((id)=>playerName(id), tA[0]) + ' \\(assist').test(await A.$eval('.live-feed',e=>e.innerText)), 'feed shows scorer and assist');
+ const nm = async id=> H.evaluate((id)=>playerName(id), id);
+ const colA = ()=>A.$eval('.lf-col.a',e=>e.innerText), colB = ()=>A.$eval('.lf-col.b',e=>e.innerText);
+ ok(new RegExp('⚽ ' + await nm(tA[0]) + '\\s+assist ' + await nm(tA[1])).test(await colA()) && !/⚽/.test(await colB()), 'goal shows on Team A’s side with the assist; Team B’s side is empty');
  // goal team B, skip scorer; then undo; then again
  await H.click('.live-grid > div:nth-child(2) .live-btn'); await wait(150); await H.click('button:has-text("Skip")'); await wait(300);
  ok(/1:1/.test(await A.$eval('.live-score .ln',e=>e.innerText.replace(/\s+/g,''))), 'Team B scores (scorer unknown): 1 : 1');
  await H.click('button:has-text("Undo last")'); await wait(300);
  ok(/1:0/.test(await A.$eval('.live-score .ln',e=>e.innerText.replace(/\s+/g,''))), 'undo takes it back off');
+ // own goal: Team B gets a goal, put in by a Team A player
+ await H.click('.live-grid > div:nth-child(2) .live-btn'); await wait(150);
+ ok(/Own goal \(by a Team A player\)/.test(await txt(H)), 'Who scored? offers an own goal by the other team');
+ await H.click('button.live-og-btn'); await wait(150);
+ const ogNames = await H.$$eval('.live-pick button',e=>e.map(x=>x.innerText));
+ ok(/Own goal by\?/.test(await txt(H)) && ogNames.length===tA.length && ogNames.includes(await nm(tA[2])), 'own goal lists the Team A players');
+ await H.click(`.live-pick button:has-text("${await nm(tA[2])}")`); await wait(400);
+ ok(/1:1/.test(await A.$eval('.live-score .ln',e=>e.innerText.replace(/\s+/g,''))), 'own goal counts for Team B: 1 : 1');
+ ok(new RegExp(await nm(tA[2]) + '\\s+own goal','i').test(await colB()) && !new RegExp(await nm(tA[2])).test(await colA()), 'own goal is written on Team B’s side, marked as an own goal');
  await H.click('.live-grid > div:nth-child(1) .live-btn'); await wait(150); await H.click(`.live-pick button:has-text("${await H.evaluate((id)=>playerName(id), tA[0])}")`); await wait(150); await H.click('button:has-text("No assist")'); await wait(300);
  await A.screenshot({path:'f_live.png'}); await H.screenshot({path:'h_live.png'});
  // full time (two taps)
@@ -46,7 +57,8 @@ const STUB = "window.__opened=[]; window.open=(u)=>{ window.__opened.push(u); re
  ok(/Tap again to save/.test(await txt(H)), 'full time asks for a second tap');
  await H.click('button:has-text("Tap again to save")'); await wait(500);
  const h = await H.evaluate(()=>HISTORY.find(x=>x.id===S.lastHistoryId));
- ok(h.winner==='a' && h.scoreA===2 && h.scoreB===0 && h.scorers.length===1 && h.scorers[0].goals===2 && h.assists.length===1 && h.duration>=1, 'result saved: Team A 2–0, scorer with 2, one assist, match length: '+JSON.stringify({w:h.winner,a:h.scoreA,b:h.scoreB,s:h.scorers,as:h.assists,d:h.duration}));
+ ok(h.winner==='a' && h.scoreA===2 && h.scoreB===1 && h.scorers.length===1 && h.scorers[0].goals===2 && h.assists.length===1 && h.duration>=1, 'result saved: Team A 2–1, scorer with 2, one assist, match length: '+JSON.stringify({w:h.winner,a:h.scoreA,b:h.scoreB,s:h.scorers,as:h.assists,d:h.duration}));
+ ok(JSON.stringify(h.ownGoals)===JSON.stringify([{playerId:tA[2], goals:1}]) && !h.scorers.some(x=>x.playerId===tA[2]), 'own goal saved separately and not counted as that player’s goal');
  ok(/FULL TIME/.test(await txt(A)), 'friends see FULL TIME');
  await A.evaluate(()=>goLeaderboard()); await wait(200);
  ok(/Golden boot: .* — 2 goals/.test(await txt(A)), 'leaderboard picks up the live goals');

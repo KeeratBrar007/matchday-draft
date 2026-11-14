@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="7db53abdc8">
+<meta name="md-build" content="2cdd79f324">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -555,7 +555,24 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
 
   .bid-actions{display:flex; gap:8px; margin-top:6px;}
 
-  .log-panel{max-height:170px; overflow-y:auto;}
+  .log-panel{max-height:260px; overflow-y:auto;}
+  .sold-flash{display:table; max-width:85%; margin:10px 0 0; padding:7px 12px; border-radius:10px; font-size:.88rem; color:var(--chalk-dim);}
+  .sold-flash b{color:var(--chalk);}
+  .sold-flash.a{background:var(--teamA-dim); border-left:4px solid var(--teamA); margin-right:auto;}
+  .sold-flash.b{background:var(--teamB-dim); border-right:4px solid var(--teamB); margin-left:auto; text-align:right;}
+  .sold-sides{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .sold-head{font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px;}
+  .sold-col.a .sold-head{color:var(--teamA);}
+  .sold-col.b .sold-head{color:var(--teamB); text-align:right;}
+  .sold-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px;}
+  .sold-list li{font-size:.82rem; color:var(--chalk-dim); padding:5px 8px; border-radius:7px; background:var(--panel-2); overflow-wrap:anywhere;}
+  .sold-col.a li{border-left:3px solid var(--teamA);}
+  .sold-col.b li{border-right:3px solid var(--teamB); text-align:right;}
+  .sold-list b{color:var(--chalk);}
+  .sold-list li.none{background:none; border:0; color:var(--chalk-faint); font-size:.75rem; padding:2px 0;}
+  .sold-col.a li.just{background:var(--teamA-dim);}
+  .sold-col.b li.just{background:var(--teamB-dim);}
+  .sold-list em{display:block; font-style:normal; font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--chalk-faint);}
   .log-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column-reverse; gap:5px;}
   .log-list li{font-size:.82rem; color:var(--chalk-dim); padding:5px 8px; border-radius:7px; background:var(--panel-2);}
   .log-list b{color:var(--chalk);}
@@ -659,7 +676,19 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .lt{font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.06em;}
   .lt.a{color:var(--teamA); text-align:right;} .lt.b{color:var(--teamB);}
   .live-grid .lt{text-align:left;}
-  .live-feed{font-size:.85rem; color:var(--chalk-dim); border-top:1px solid var(--line); padding-top:8px; line-height:1.6;}
+  .live-feed{font-size:.85rem; color:var(--chalk-dim); border-top:1px solid var(--line); padding-top:8px; line-height:1.45; display:grid; grid-template-columns:1fr 1fr; gap:4px 14px;}
+  .live-feed.empty{display:block; text-align:center;}
+  .lf-col{display:flex; flex-direction:column; gap:5px; min-width:0;}
+  .lf-col.b{text-align:right; align-items:flex-end;}
+  .lf-col.a{border-left:3px solid var(--teamA); padding-left:8px;}
+  .lf-col.b{border-right:3px solid var(--teamB); padding-right:8px;}
+  .lf-ev{color:var(--chalk); overflow-wrap:anywhere;}
+  .lf-ev small{display:block; font-size:.72rem; color:var(--chalk-faint);}
+  .lf-t{font-family:'Space Mono',monospace; font-size:.75rem; color:var(--chalk-faint); margin-right:5px;}
+  .lf-col.b .lf-t{margin-right:5px;}
+  .lf-og{white-space:nowrap; font-size:.72rem; font-weight:700; color:var(--danger); text-transform:uppercase; letter-spacing:.04em;}
+  .lf-more, .lf-none{font-size:.72rem; color:var(--chalk-faint);}
+  .live-og-btn{width:100%; margin-top:10px; border-style:dashed;}
   .live-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
   .live-btns{display:flex; flex-wrap:wrap; gap:6px;}
   .live-btn{flex:1 1 60px; min-height:52px; font-size:1.05rem; font-weight:700;}
@@ -4718,9 +4747,15 @@ function renderAuction(){
   const currentId = a.order[a.index];
   const onBlock = !a.done && currentId;
 
-  const log = a.log.slice(-8).reverse().map(l=>
-    `<li>${l.free? '🎁 ':'💰 '}<b>${esc(playerName(l.playerId))}</b> → Team ${l.team.toUpperCase()} ${l.free? '(free — leftover)':'for ₹'+l.price}</li>`
+  // each sale is written on the side of the team that got the player, newest on top
+  const lastSale = a.log[a.log.length-1];
+  const sideLog = team=> a.log.filter(l=>l.team===team).slice().reverse().map(l=>
+    `<li class="${l===lastSale ? 'just' : ''}">${l.free? '🎁 ':'💰 '}<b>${esc(playerName(l.playerId))}</b> <span>${l.free? 'free (leftover)':'₹'+l.price}</span>${l===lastSale ? '<em>just now</em>' : ''}</li>`
   ).join('');
+  const log = a.log.length ? `<div class="sold-sides">
+      <div class="sold-col a"><div class="sold-head">→ Team A</div><ul class="sold-list">${sideLog('a') || '<li class="none">nobody yet</li>'}</ul></div>
+      <div class="sold-col b"><div class="sold-head">Team B ←</div><ul class="sold-list">${sideLog('b') || '<li class="none">nobody yet</li>'}</ul></div>
+    </div>` : '';
 
   return `
   <div class="panel">
@@ -4744,6 +4779,7 @@ function renderAuction(){
       </div>
       ${capCardHtml('b')}
     </div>
+    ${lastSale ? `<div class="sold-flash ${lastSale.team}" id="soldFlash">${lastSale.team==='b' ? '' : '← '}${lastSale.free ? '🎁' : '💰'} <b>${esc(playerName(lastSale.playerId))}</b> joins Team ${lastSale.team.toUpperCase()}${lastSale.free ? ' (free)' : ' for ₹' + lastSale.price}${lastSale.team==='b' ? ' →' : ''}</div>` : ''}
     ${renderAuctionActions()}
     ${a.note && !a.done ? `<div class="banner amber" style="margin-top:10px;">${/jumped/.test(a.note) ? '📣' : '⏱'} ${esc(a.note)}</div>` : ''}
     ${(isHost() && !a.done) ? `<div class="row" style="gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;">
@@ -4757,7 +4793,7 @@ function renderAuction(){
 
   <div class="panel log-panel">
     <div class="panel-title" style="font-size:1.1rem; margin-bottom:8px;">Sold so far</div>
-    ${log ? `<ul class="log-list">${log}</ul>` : `<div class="empty-note">No sales yet.</div>`}
+    ${log || `<div class="empty-note">No sales yet.</div>`}
   </div>
 
   ${a.done && isHost() ? `
@@ -6779,8 +6815,10 @@ function liveTap(team, i){
   if(liveCfg().who && !b.w){ liveAsk = {team, pts: b.pts, stage: 'who'}; render(); return; }
   liveAdd({team, pts: b.w ? 0 : b.pts, w: !!b.w, pid: null, ast: null});
 }
+function liveOwnGoal(){ if(!liveAsk) return; liveAsk.stage = 'og'; render(); }
 function liveAskPick(pid){
   if(!liveAsk) return;
+  if(liveAsk.stage==='og'){ liveAdd({team: liveAsk.team, pts: liveAsk.pts, w:false, og:true, pid: pid || null, ast: null}); liveAsk = null; render(); return; }
   if(liveAsk.stage==='who' && liveCfg().assist && pid){ liveAsk.pid = pid; liveAsk.stage = 'assist'; render(); return; }
   if(liveAsk.stage==='assist') liveAdd({team: liveAsk.team, pts: liveAsk.pts, w:false, pid: liveAsk.pid, ast: pid || null});
   else liveAdd({team: liveAsk.team, pts: liveAsk.pts, w:false, pid: pid || null, ast: null});
@@ -6807,13 +6845,18 @@ function liveFullTime(){
   const teamAIds = (h && h.teamAIds) || getCompleteTeamIds().teamAIds, teamBIds = (h && h.teamBIds) || getCompleteTeamIds().teamBIds;
   const winner = t.a>t.b ? 'a' : t.b>t.a ? 'b' : 'draw';
   const sum = {}, ast = {};
-  (L.events||[]).forEach(e=>{ if(e.pid && e.pts) sum[e.pid] = (sum[e.pid]||0) + e.pts; if(e.ast) ast[e.ast] = (ast[e.ast]||0) + 1; });
+  const og = {};
+  (L.events||[]).forEach(e=>{
+    if(e.og){ if(e.pid) og[e.pid] = (og[e.pid]||0) + 1; return; }
+    if(e.pid && e.pts) sum[e.pid] = (sum[e.pid]||0) + e.pts; if(e.ast) ast[e.ast] = (ast[e.ast]||0) + 1;
+  });
+  const ownGoals = Object.keys(og).map(id=>({playerId:id, goals:og[id]}));
   const scorers = Object.keys(sum).map(id=>({playerId:id, goals:sum[id]}));
   const assists = Object.keys(ast).map(id=>({playerId:id, assists:ast[id]}));
   const minutes = Math.max(1, Math.round((Date.now() - L.startedAt)/60000));
   const duration = liveCfg().clock ? minutes : null;
   const extra = SPORT.teamWickets ? {wktsA: t.wa, wktsB: t.wb} : {};
-  updateHistoryResult(L.hid, Object.assign({winner, scoreA: t.a, scoreB: t.b, scorers, assists, duration, live: true}, extra));
+  updateHistoryResult(L.hid, Object.assign({winner, scoreA: t.a, scoreB: t.b, scorers, assists, ownGoals, duration, live: true}, extra));
   applyMatchOutcome(teamAIds, teamBIds, winner, scorers, t.a, t.b, duration, assists);
   resultDraft.saved = true;
   L.status = 'ended'; L.endedAt = Date.now();
@@ -6821,11 +6864,16 @@ function liveFullTime(){
 }
 function liveEventText(e){
   const min = Math.floor((e.at||0)/60000) + 1;
-  const time = liveCfg().clock ? min + '’ ' : '';
-  const team = 'Team ' + e.team.toUpperCase();
-  if(e.w) return time + '☝️ Wicket · ' + team;
-  if(SPORT.key==='football') return time + '⚽ ' + (e.pid ? esc(playerName(e.pid)) : team) + (e.ast ? ' <span style="color:var(--chalk-faint);">(assist ' + esc(playerName(e.ast)) + ')</span>' : '');
-  return time + '+' + e.pts + ' ' + (e.pid ? esc(playerName(e.pid)) + ' · ' : '') + team;
+  const time = liveCfg().clock ? '<span class="lf-t">' + min + '’</span>' : '';
+  if(e.w) return time + '☝️ Wicket';
+  if(e.og) return time + '⚽ ' + (e.pid ? esc(playerName(e.pid)) + ' <span class="lf-og">own goal</span>' : '<span class="lf-og">Own goal</span>');
+  if(SPORT.key==='football') return time + '⚽ ' + (e.pid ? esc(playerName(e.pid)) : 'Goal') + (e.ast ? '<small>assist ' + esc(playerName(e.ast)) + '</small>' : '');
+  return time + '+' + e.pts + (e.pid ? ' ' + esc(playerName(e.pid)) : '');
+}
+// one column per team, under that team's side of the score
+function liveSideHtml(L, team){
+  const all = (L.events||[]).filter(e=>e.team===team), max = 8, evs = all.slice(-max);
+  return `<div class="lf-col ${team}">${all.length > max ? `<div class="lf-more">+${all.length - max} earlier</div>` : ''}${evs.map(e=>`<div class="lf-ev">${liveEventText(e)}</div>`).join('') || '<div class="lf-none">–</div>'}</div>`;
 }
 function liveCardHtml(){
   if(!liveShown()) return '';
@@ -6842,7 +6890,7 @@ function liveCardHtml(){
       <div class="ln"><span>${sc('a')}</span><i>:</i><span>${sc('b')}</span></div>
       <div class="lt b">Team B</div>
     </div>
-    ${evs.length ? `<div class="live-feed">${evs.map(e=>`<div>${liveEventText(e)}</div>`).join('')}</div>` : (on ? `<div class="live-feed" style="text-align:center;">Kick-off! Scores appear here as they happen.</div>` : '')}
+    ${evs.length ? `<div class="live-feed">${liveSideHtml(L,'a')}${liveSideHtml(L,'b')}</div>` : (on ? `<div class="live-feed empty">Kick-off! Scores appear here as they happen.</div>` : '')}
     ${isHost() && on ? `
       <div class="live-grid">
         <div><div class="lt a" style="margin-bottom:6px;">Team A</div>${btnRow('a')}</div>
@@ -6859,15 +6907,20 @@ function renderLiveAsk(){
   if(!liveAsk || !liveOn()) { liveAsk = null; return ''; }
   const h = HISTORY.find(x=>x.id===S.live.hid);
   const ids = h ? (liveAsk.team==='a' ? h.teamAIds : h.teamBIds) || [] : (getCompleteTeamIds()[liveAsk.team==='a' ? 'teamAIds' : 'teamBIds'] || []);
-  const pool = liveAsk.stage==='assist' ? ids.filter(id=>id!==liveAsk.pid) : ids;
-  const title = liveAsk.stage==='assist' ? 'Assist?' : (SPORT.key==='football' ? 'Who scored?' : 'Who scored the ' + liveAsk.pts + '?');
+  const other = liveAsk.team==='a' ? 'b' : 'a';
+  const otherIds = h ? (other==='a' ? h.teamAIds : h.teamBIds) || [] : (getCompleteTeamIds()[other==='a' ? 'teamAIds' : 'teamBIds'] || []);
+  const og = liveAsk.stage==='og';
+  const pool = og ? otherIds : liveAsk.stage==='assist' ? ids.filter(id=>id!==liveAsk.pid) : ids;
+  const title = og ? 'Own goal by?' : liveAsk.stage==='assist' ? 'Assist?' : (SPORT.key==='football' ? 'Who scored?' : 'Who scored the ' + liveAsk.pts + '?');
   return `
   <div class="modal-backdrop" onclick="if(event.target===this){ liveAsk=null; render(); }">
     <div class="modal" style="max-width:420px;">
-      <div class="panel-title" style="margin:0 0 4px;">${title} <span style="color:var(--team${liveAsk.team.toUpperCase()});">· Team ${liveAsk.team.toUpperCase()}</span></div>
+      <div class="panel-title" style="margin:0 0 4px;">${title} <span style="color:var(--team${(og ? other : liveAsk.team).toUpperCase()});">· Team ${(og ? other : liveAsk.team).toUpperCase()}</span></div>
+      ${og ? `<div class="panel-sub" style="margin:0;">Goal for Team ${liveAsk.team.toUpperCase()}. Pick the Team ${other.toUpperCase()} player who put it in their own net. It won’t count as their goal.</div>` : ''}
       <div class="live-pick">${pool.map(id=>`<button class="btn" onclick="liveAskPick('${id}')">${esc(playerName(id))}</button>`).join('')}</div>
+      ${liveAsk.stage==='who' && SPORT.key==='football' ? `<button class="btn live-og-btn" onclick="liveOwnGoal()">🙃 Own goal (by a Team ${other.toUpperCase()} player)</button>` : ''}
       <div class="footer-actions" style="justify-content:flex-start; margin-top:12px;">
-        <button class="btn btn-ghost" onclick="liveAskPick(null)">${liveAsk.stage==='assist' ? 'No assist' : 'Skip (don’t know)'}</button>
+        <button class="btn btn-ghost" onclick="liveAskPick(null)">${liveAsk.stage==='assist' ? 'No assist' : og ? 'Skip (don’t know who)' : 'Skip (don’t know)'}</button>
         <button class="btn btn-ghost" onclick="liveAsk=null; render();">Cancel</button>
       </div>
     </div>

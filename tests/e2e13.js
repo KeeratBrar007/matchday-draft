@@ -47,10 +47,24 @@ let fails=0; const ok=(c,m)=>{ console.log((c?'PASS ':'FAIL ')+m); if(!c) fails+
  await A.click('button:has-text("Pass")'); await wait(400);
  const sold = await H.evaluate(()=>S.auction.log.slice(-1)[0]);
  ok(sold.team==='b' && sold.price===60 && sold.playerId===pid && await H.evaluate(()=>S.auction.teamB.budget)===40, 'sold to Karan for ₹60, his budget drops to ₹40');
+ // the sale is written on Team B's side
+ const pname = await H.evaluate((id)=>playerName(id), pid);
+ const side = async (P,t)=> (await P.$eval('.sold-col.'+t, e=>e.innerText)).replace(/\s+/g,' ');
+ ok(new RegExp(pname + ' ₹60 just now','i').test(await side(A,'b')) && /nobody yet/.test(await side(A,'a')), 'sale shows on Team B’s side ("just now"), Team A’s side is empty: '+await side(A,'b'));
+ const fl = await A.$eval('#soldFlash', e=>({cls:e.className, t:e.innerText, right: e.getBoundingClientRect().right, left: e.getBoundingClientRect().left, w: document.documentElement.clientWidth}));
+ ok(/sold-flash b/.test(fl.cls) && new RegExp(pname + ' joins Team B for ₹60').test(fl.t) && fl.right > fl.w*0.85 && fl.left > fl.w*0.12, 'a "joins Team B" message appears on the right-hand side: '+JSON.stringify(fl));
+ await A.screenshot({path:'f_sold_sides.png'});
  // plain minimum bid still works
  const before = await H.evaluate(()=>S.auction.currentBid);
  await H.evaluate(()=>{ const t=S.auction.turn; auctionBid(t); }); await wait(300);
  ok(await H.evaluate(()=>S.auction.pendingLeaderPrice)===before, 'the plain "Bid" button still bids the minimum');
+ const leader = await H.evaluate(()=>S.auction.leader), pid2 = await H.evaluate(()=>S.auction.order[S.auction.index]);
+ await H.evaluate((l)=>auctionPass(l==='a'?'b':'a'), leader); await wait(400);
+ const n2 = await H.evaluate((id)=>playerName(id), pid2);
+ ok(new RegExp(n2 + ' ₹\\d+ just now','i').test(await side(A, leader)) && !/just now/i.test(await side(A, leader==='a'?'b':'a')), 'next sale goes on Team ' + leader.toUpperCase() + '’s side and "just now" moves to it');
+ const fl2 = await A.$eval('#soldFlash', e=>({cls:e.className, left: e.getBoundingClientRect().left, right: e.getBoundingClientRect().right, w: document.documentElement.clientWidth}));
+ ok(fl2.cls.includes('sold-flash '+leader) && (leader==='a' ? fl2.left < fl2.w*0.15 : fl2.right > fl2.w*0.85), 'the message moves to Team ' + leader.toUpperCase() + '’s side: '+JSON.stringify(fl2));
+ await A.screenshot({path:'f_sold_flash2.png'});
  ok(errs.length===0,'no page errors '+JSON.stringify(errs));
  console.log(fails?('\n'+fails+' FAILED'):'\nALL PASSED'); await br.close(); srv.close();
 })();
