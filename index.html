@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="795bbbbbf2">
+<meta name="md-build" content="d55fc17170">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -597,6 +597,16 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .pf-section{font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--chalk-faint); margin:16px 0 8px;}
   .form-row{display:flex; gap:6px; align-items:center;}
   .form-chip{width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.82rem; color:#fff;}
+  .pm-row{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--line);}
+  .pm-row:last-child{border-bottom:0;}
+  .pm-row .form-chip{flex:none;}
+  .pm-main{flex:1; min-width:0;}
+  .pm-top{font-weight:700; font-size:.92rem;}
+  .pm-top small{font-weight:500; color:var(--chalk-faint);}
+  .pm-sub{font-size:.8rem; color:var(--chalk-dim); margin-top:3px; line-height:1.35;}
+  .pm-sub b{color:var(--chalk);}
+  .hi-badge{display:inline-block; font-size:.66rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:1px 7px; border-radius:999px; background:var(--amber); color:var(--amber-ink); margin-left:4px; vertical-align:1px;}
+  .form-chip.N{background:var(--line-strong);}
   .form-chip.W{background:var(--good);} .form-chip.L{background:var(--danger);} .form-chip.D{background:var(--chalk-faint);}
   .mate-row{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line);}
   .mate-row small{display:block; color:var(--chalk-dim); font-size:.76rem; margin-top:1px;}
@@ -898,6 +908,7 @@ let updateReady = false;     // the service worker found a newer version of the 
 let alertsOn = (function(){ try{ return localStorage.getItem('md_alerts')!=='off'; }catch(e){ return true; } })();
 let statsScope = 'month';     // leaderboard view: 'month' | 'season' | 'all' | 'rivals'
 let statsSeason = null;      // 'YYYY' shown in the season view (defaults to this year)
+let profileMatchesAll = false; // profile 'Past matches': show every match instead of the latest few
 let profileTab = 'stats';    // profile card tab: 'stats' | 'rivals'
 let RIVALS = [];             // rivalry docs for the active squad
 let unsubRiv = null;
@@ -2062,6 +2073,12 @@ function auctionPass(team, auto){
   saveState({auction:a});
 }
 
+// What each player went for in the auction: {playerId: {p:price, f:true if handed out free}}.
+function auctionPriceMap(a){
+  const out = {};
+  (a.log||[]).forEach(l=>{ if(l && l.playerId) out[l.playerId] = {p: l.price||0, f: !!l.free}; });
+  return out;
+}
 function saveAuctionToHistory(){
   const a = S.auction;
   resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false};
@@ -2072,7 +2089,9 @@ function saveAuctionToHistory(){
     teamA:{captain:playerName(S.captains.a), players:a.teamA.ids.map(playerName)}, teamAIds:a.teamA.ids,
     teamB:{captain:playerName(S.captains.b), players:a.teamB.ids.map(playerName)}, teamBIds:a.teamB.ids,
     subs:(S.subIds||[]).map(playerName), subIds:S.subIds||[],
-    att:S.attSnap || null
+    att:S.attSnap || null,
+    prices: auctionPriceMap(a),
+    captainIds:{a:S.captains.a||null, b:S.captains.b||null}
   });
   saveState({auction:Object.assign({}, a, {savedToHistory:true}), phase:'complete', lastHistoryId:id});
 }
@@ -4177,6 +4196,7 @@ function renderHistoryModal(){
 function openProfile(id, tab){
   if(!id || !findPlayer(id)) return;
   showHistory = false; showAttendance = false; profilePickerOpen = false;
+  if(profileId !== id) profileMatchesAll = false;
   profileId = id; profileTab = tab || 'stats'; render(); window.scrollTo(0,0);
 }
 function closeProfile(){ profileId = null; render(); window.scrollTo(0,0); }
@@ -4223,6 +4243,60 @@ function computeProfile(id){
   });
   return out;
 }
+const PROFILE_MATCHES_SHOWN = 5;
+function potmLineHtml(h, me){
+  const part = t=>{
+    const w = computePotmWinner(h, t);
+    if(!w) return null;
+    const names = w.leaders.map(id=> id===me ? `<b>⭐ ${esc(playerName(id))}</b>` : esc(playerName(id))).join(' / ');
+    return `${names} <small>(Team ${t.toUpperCase()}${w.tied?', tied':''})</small>`;
+  };
+  const bits = [part('a'), part('b')].filter(Boolean);
+  return bits.length ? bits.join(' · ') : '<span style="color:var(--chalk-faint);">no votes yet</span>';
+}
+function priceLineHtml(h, id){
+  if(h.mode!=='draft') return '';
+  const cap = h.captainIds || {};
+  if(cap.a===id || cap.b===id) return `<div class="pm-sub">🧢 Captain</div>`;
+  if(!h.prices) return `<div class="pm-sub" style="color:var(--chalk-faint);">💰 Price not recorded (drafted before prices were saved)</div>`;
+  const mine = h.prices[id];
+  if(!mine) return '';
+  if(mine.f) return `<div class="pm-sub">💰 Free pick (handed out when the auction was finished early)</div>`;
+  const max = Math.max(0, ...Object.values(h.prices).map(x=>(x && !x.f) ? (x.p||0) : 0));
+  const top = mine.p>0 && mine.p===max;
+  return `<div class="pm-sub">💰 Bought for <b>₹${mine.p}</b>${top ? '<span class="hi-badge">Highest</span>' : ''}</div>`;
+}
+function profileMatchesHtml(p, isMe){
+  const list = HISTORY.filter(h=>(h.teamAIds||[]).includes(p.id) || (h.teamBIds||[]).includes(p.id));
+  const shown = profileMatchesAll ? list : list.slice(0, PROFILE_MATCHES_SHOWN);
+  const rows = shown.map(h=>{
+    const inA = (h.teamAIds||[]).includes(p.id);
+    const side = inA ? 'a' : 'b';
+    let res = 'N';
+    if(h.winner==='draw') res = 'D';
+    else if(h.winner==='a' || h.winner==='b') res = h.winner===side ? 'W' : 'L';
+    const hasScore = h.scoreA!=null && h.scoreA!=='' && h.scoreB!=null && h.scoreB!=='';
+    const score = hasScore ? `Team A ${h.scoreA} – ${h.scoreB} Team B`
+      : (h.winner==='draw' ? 'Draw' : h.winner==='a' ? 'Team A won' : h.winner==='b' ? 'Team B won' : 'No result yet');
+    const g = (h.scorers||[]).filter(x=>x.playerId===p.id).reduce((n,x)=>n+(x.goals||0),0);
+    const as = (h.assists||[]).filter(x=>x.playerId===p.id).reduce((n,x)=>n+(x.assists||0),0);
+    const extra = [g ? `⚽ ${g} goal${g===1?'':'s'}` : '', as ? `🅰 ${as} assist${as===1?'':'s'}` : ''].filter(Boolean).join(' · ');
+    const when = new Date(h.date).toLocaleDateString(undefined,{day:'numeric', month:'short'});
+    return `<div class="pm-row">
+      <span class="form-chip ${res}">${res==='N'?'–':res}</span>
+      <div class="pm-main">
+        <div class="pm-top">${esc(score)} <small>· ${esc(when)} · ${esc(matchModeLabel(h.mode))}</small></div>
+        <div class="pm-sub">${isMe?'You':esc(p.name)} played for <b>Team ${side.toUpperCase()}</b>${extra ? ' · '+extra : ''}</div>
+        <div class="pm-sub">🏅 Man of the match: ${potmLineHtml(h, p.id)}</div>
+        ${priceLineHtml(h, p.id)}
+      </div>
+    </div>`;
+  }).join('');
+  return `
+      <div class="pf-section">Past matches${list.length ? ' ('+list.length+')' : ''}</div>
+      ${list.length ? rows : `<div class="empty-note">No matches played yet.</div>`}
+      ${list.length > PROFILE_MATCHES_SHOWN ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick="profileMatchesAll=!profileMatchesAll; render();">${profileMatchesAll ? 'Show fewer' : 'Show all '+list.length}</button>` : ''}`;
+}
 function renderProfilePage(){
   if(!profileId) return '';
   const p = findPlayer(profileId);
@@ -4267,6 +4341,7 @@ function renderProfilePage(){
           <div>${nameLink(m.id)}<small>${m.g} matches together · ${m.w} won</small></div>
           <div class="mate-pct">${Math.round(100*m.w/m.g)}%</div>
         </div>`).join('') : `<div class="empty-note">Play a couple more matches together to see who ${esc(p.name)} wins with.</div>`}
+      ${profileMatchesHtml(p, isMe)}
       ` : `<div class="empty-note" style="margin-top:14px;">No matches recorded for ${esc(p.name)} yet.</div>`}
       ${(()=>{ const g = chemistryGroupOf(p.id); const links = g ? g.filter(x=>x!==p.id && findPlayer(x)) : [];
         return `<div class="pf-section">🔗 Chemistry link</div>` + (links.length
