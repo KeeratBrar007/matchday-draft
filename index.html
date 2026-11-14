@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="c2d89e90cc">
+<meta name="md-build" content="17f1743064">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -899,6 +899,7 @@ function isHostCode(x){ return sha256Hex(String(x)) === HOST_HASH; }
 let scrollToPoll = false;
 let pendingVote = null;          // {poll, vote} from a one-tap answer link, applied once logged in
 let pollVotesLoaded = false;
+const pollSeenMarked = new Set();   // polls this phone has already reported as seen
 let infoToast = null, infoTimer = null;
 let isHostDevice = false;
 let pendingHostCode = null;      // host code entered this session, sent once to the database as proof
@@ -2563,7 +2564,7 @@ function copyTeamSheet(){
 function shareTeamsWhatsApp(){
   const text = buildTeamSheetText();
   if(!text) return;
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  openWhatsApp(text);
 }
 function shareButtonsHtml(){
   if(!buildTeamSheetText()) return '';
@@ -2988,6 +2989,7 @@ function render(){
   }
   checkTurnAlert();
   if(pendingVote && pollVotesLoaded && getMyPlayerId()) setTimeout(applyPendingVote, 0);
+  else if(!pendingVote && document.getElementById('pollCard')) markPollSeen();
   if(scrollToPoll){
     const pc = document.getElementById('pollCard');
     if(pc){ scrollToPoll = false; setTimeout(()=>{ try{ pc.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){} }, 50); }
@@ -4400,11 +4402,28 @@ function pollNeedsMyAnswer(){
   return !pollAnswered(pollVotesMap()[me]);
 }
 function pollNoReply(){ const m = pollVotesMap(); return pollEligible().filter(p=>!pollAnswered(m[p.id])); }
-function pollLink(vote){
-  const p = S.poll;
-  return location.origin + location.pathname + '?poll=' + encodeURIComponent(p ? p.id : '') + (vote ? '&vote=' + encodeURIComponent(vote) : '');
+// "Seen": the poll was on their screen but they haven't picked anything yet.
+// Stored as an empty answer, so it needs no extra database rule.
+function pollSeenOnly(){ const m = pollVotesMap(); return pollEligible().filter(p=>m[p.id] && !pollAnswered(m[p.id])); }
+function markPollSeen(){
+  const p = S.poll, me = getMyPlayerId();
+  if(!p || !me || !pollVotesLoaded || pollSeenMarked.has(p.id) || !pollVisible()) return;
+  pollSeenMarked.add(p.id);
+  if(pollVotesMap()[me]) return;            // already seen or answered
+  const vid = p.id + '__' + me;
+  const doc = {pollId: p.id, playerId: me, slots: [], no: false, at: new Date().toISOString()};
+  if(db) db.doc(squadPath('pollVotes/' + vid)).set(doc).catch(()=>{});
+  else { POLLVOTES = POLLVOTES.concat([Object.assign({id: vid}, doc)]); localCommit(); }
 }
-function pollLinkFor(poll, vote){ return location.origin + location.pathname + '?poll=' + encodeURIComponent(poll.id) + (vote ? '&vote=' + encodeURIComponent(vote) : ''); }
+// Links in shared messages must open on friends' phones, so they always point at the
+// live site, even when the poll was made from a downloaded copy or a test page.
+const SITE_URL = 'https://keeratbrar007.github.io/matchday-draft/';
+function siteBase(){
+  const live = /^https:$/.test(location.protocol) && /\.github\.io$/.test(location.hostname);
+  return live ? location.origin + location.pathname.replace(/index\.html$/, '') : SITE_URL;
+}
+function pollLinkFor(poll, vote){ return siteBase() + '?poll=' + encodeURIComponent(poll.id) + (vote ? '&vote=' + encodeURIComponent(vote) : ''); }
+function pollLink(vote){ return S.poll ? pollLinkFor(S.poll, vote) : siteBase(); }
 function infoToastHtml(){
   return infoToast ? `<div class="update-toast" role="status"><span>${esc(infoToast)}</span><button class="btn btn-sm" onclick="infoToast=null; render();">OK</button></div>` : '';
 }
@@ -4429,7 +4448,8 @@ function applyPendingVote(){
   }
   render();
 }
-function openWhatsApp(text){ window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
+// api.whatsapp.com keeps emoji intact (the short wa.me address can turn them into "�")
+function openWhatsApp(text){ window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
 function pollPresetSlots(){
   const out = [], now = new Date();
   for(let d=0; d<5; d++){
@@ -4496,6 +4516,7 @@ function castPollVote(playerId, slots, no){
   if(!p || !playerId || !findPlayer(playerId)) return;
   if(!isHost() && playerId !== getMyPlayerId()) return;   // friends answer only for themselves
   const vid = p.id + '__' + playerId;
+  if(playerId === getMyPlayerId()) pollSeenMarked.add(p.id);   // an answer means seen; never overwrite it with a "seen" mark
   const doc = {pollId: p.id, playerId, slots: (slots||[]).filter(x=>p.opts.some(o=>o.id===x)), no: !!no, at: new Date().toISOString()};
   if(db){
     db.doc(squadPath('pollVotes/' + vid)).set(doc).catch(()=>{});
@@ -4575,7 +4596,10 @@ function sharePollConfirm(){
   const quiet = pollNoReply().map(x=>x.name);
   const lines = ['✅ *Confirmed: ' + (o ? o.label : '') + '*', '', '*In (' + ins.length + '):* ' + (ins.join(', ') || '–')];
   if(outs.length) lines.push('*Can’t make it:* ' + outs.join(', '));
-  if(quiet.length) lines.push('*No reply:* ' + quiet.join(', '));
+  const seenNames = new Set(pollSeenOnly().map(x=>x.name));
+  const seenQ = quiet.filter(n=>seenNames.has(n)), unopenedQ = quiet.filter(n=>!seenNames.has(n));
+  if(seenQ.length) lines.push('*Seen, no answer:* ' + seenQ.join(', '));
+  if(unopenedQ.length) lines.push('*Not opened:* ' + unopenedQ.join(', '));
   lines.push('', 'Plans changed? Can’t make it any more:', pollLinkFor(p, 'no'), '', 'Now in:', pollLinkFor(p, p.decided));
   openWhatsApp(lines.join('\n'));
 }
@@ -4630,14 +4654,20 @@ function renderPollCard(){
   <div class="panel poll-card" id="pollCard">
     <div class="poll-head">
       <div class="poll-q">📊 ${esc(p.q)}</div>
-      <div class="poll-meta">${replied} of ${elig.length} replied</div>
+      <div class="poll-meta">${replied} of ${elig.length} replied${pollSeenOnly().length ? '<br>' + pollSeenOnly().length + ' seen' : ''}</div>
     </div>
     ${won ? `<div class="poll-won">✅ Confirmed: ${esc(won.label)}<small>${pollNamesFor(won.id).length} in · ${need} needed for ${S.format}v${S.format}</small></div>`
           : (p.opts.length>1 ? `<div class="panel-sub" style="margin:4px 0 0;">Tick every time that works for you, or No.</div>` : `<div class="poll-when">🗓 ${esc(p.opts[0].label)}</div>`)}
     ${(decided ? [won] : p.opts).filter(Boolean).map(optRow).join('')}
     ${noRow}
     ${!me && !isHost() ? `<div class="panel-sub" style="margin-top:8px;">Log in with your name to answer.</div>` : ''}
-    <div class="poll-list"><b>No reply yet (${noReply.length}):</b> ${noReply.length ? noReply.map(x=>esc(x.name)).join(', ') : 'everyone has answered 🎉'}</div>
+    ${(()=>{
+      if(!noReply.length) return `<div class="poll-list"><b>Everyone has answered 🎉</b></div>`;
+      const seen = pollSeenOnly(), seenIds = new Set(seen.map(x=>x.id));
+      const unopened = noReply.filter(x=>!seenIds.has(x.id));
+      return (seen.length ? `<div class="poll-list"><b>👀 Seen, not answered (${seen.length}):</b> ${seen.map(x=>esc(x.name)).join(', ')}</div>` : '')
+           + (unopened.length ? `<div class="poll-list"><b>Not opened yet (${unopened.length}):</b> ${unopened.map(x=>esc(x.name)).join(', ')}</div>` : '');
+    })()}
     ${decided && (S.phase==='setup' || S.phase==='complete') ? `<div class="poll-list">Everyone who’s in has been ticked in for the match. Changing an answer here ticks them in or out.</div>` : ''}
     ${register}
     ${isHost() ? `<div class="poll-actions">
