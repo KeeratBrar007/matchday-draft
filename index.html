@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="00e9b8bf3b">
+<meta name="md-build" content="c2d89e90cc">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -608,6 +608,11 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .poll-won small{display:block; font-weight:500; opacity:.9;}
   .poll-opt{display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--line-strong); border-radius:var(--radius-sm); margin-top:8px; background:var(--panel);}
   .poll-opt.mine{border-color:var(--amber); background:var(--panel-2);}
+  .poll-opt.tap{cursor:pointer;}
+  .poll-opt.no-opt.mine{border-color:var(--danger);}
+  .poll-opt.no-opt.mine .poll-tick{background:var(--danger); border-color:var(--danger); color:#fff;}
+  .poll-tick{display:flex; align-items:center; justify-content:center;}
+  .poll-when{font-weight:600; margin:6px 0 0;}
   .poll-tick{flex:none; width:30px; height:30px; border-radius:8px; border:2px solid var(--line-strong); background:transparent; color:var(--amber-ink); font-weight:800; font-size:1rem; cursor:pointer;}
   .poll-opt.mine .poll-tick{background:var(--amber); border-color:var(--amber);}
   .poll-tick:disabled{cursor:default; opacity:.5;}
@@ -891,6 +896,10 @@ function sha256Hex(str){
   return H.map(v=>(v>>>0).toString(16).padStart(8,'0')).join('');
 }
 function isHostCode(x){ return sha256Hex(String(x)) === HOST_HASH; }
+let scrollToPoll = false;
+let pendingVote = null;          // {poll, vote} from a one-tap answer link, applied once logged in
+let pollVotesLoaded = false;
+let infoToast = null, infoTimer = null;
 let isHostDevice = false;
 let pendingHostCode = null;      // host code entered this session, sent once to the database as proof
 let FB_AUTH = null, AUTH_UID = null;
@@ -912,6 +921,15 @@ try{
   if(/^#poll\b/.test(window.location.hash||'')){
     scrollToPoll = true;
     history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  // one-tap answer links from the WhatsApp message: ?poll=<id>&vote=<option|no>
+  const qs = new URLSearchParams(window.location.search||'');
+  if(qs.has('poll') || qs.has('vote')){
+    scrollToPoll = true;
+    if(qs.get('vote')) pendingVote = {poll: qs.get('poll')||'', vote: qs.get('vote')};
+    qs.delete('poll'); qs.delete('vote'); qs.delete('md-check');
+    const rest = qs.toString();
+    history.replaceState(null, '', window.location.pathname + (rest ? '?'+rest : '') + (window.location.hash||''));
   }
   const hashMatch = (window.location.hash||'').match(/[#&]host=([^&]+)/);
   if(hashMatch && isHostCode(decodeURIComponent(hashMatch[1]))){
@@ -968,7 +986,6 @@ let unsubRiv = null;
 let POLLVOTES = [], unsubPoll = null;
 let pollFormOpen = false, pollDraft = {q:'', opts:[], custom:''}, pollFormErr = '';
 let pollRegister = false, pollEndArm = false;
-let scrollToPoll = false;
 let rivalArm = null;         // rivalry awaiting a second tap to end
 let showAttendance = false;  // host-only attendance modal
 let timerKey = '', timerStart = 0, timerFiredAt = 0, timerWarnKey = '';
@@ -1361,10 +1378,12 @@ function subscribeToSquad(id){
   }, ()=>{});
   if(unsubPoll) unsubPoll();
   POLLVOTES = [];
+  pollVotesLoaded = false;
   unsubPoll = db.collection('squads/'+id+'/pollVotes').onSnapshot(qsnap=>{
     POLLVOTES = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
+    pollVotesLoaded = true;
     render();
-  }, ()=>{});
+  }, ()=>{ pollVotesLoaded = true; });
   unsubRiv = db.collection('squads/'+id+'/rivalries').onSnapshot(qsnap=>{
     RIVALS = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
     render();
@@ -1558,7 +1577,7 @@ async function initDb(){
     currentSquadId = LOCAL.currentSquadId;
     squadsList = LOCAL.squads;
     const rec = LOCAL.data[currentSquadId] || { squad: defaultSquad(), state: defaultState(), history: [] };
-    SQUAD = rec.squad; S = rec.state; HISTORY = rec.history; POLLVOTES = rec.pollVotes || [];
+    SQUAD = rec.squad; S = rec.state; HISTORY = rec.history; POLLVOTES = rec.pollVotes || []; pollVotesLoaded = true;
     ensureRankBaselineFresh();
     dbReady = true;
     rosterLoaded = true;
@@ -2914,6 +2933,7 @@ function renderLogin(){
     <div class="brand"><span class="ball">⚽</span><div><h1>Matchday Draft</h1></div></div>
     <div class="login-card">
       <h2>Log in</h2>
+      ${pendingVote ? `<p class="login-sub" style="color:var(--chalk); font-weight:600;">📊 Log in once and your poll answer saves straight away.</p>` : ''}
       <p class="login-sub">Type your name — the same one the host added you with. No password needed.</p>
       <div class="login-row">
         <input type="text" id="loginNameInput" placeholder="Your name" autocomplete="off" autocapitalize="words" value="${esc(loginDraft)}"
@@ -2955,7 +2975,7 @@ function render(){
   app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + (pg==='home' ? renderProgress() : '') + renderBanner()
     + hostLockBannerHtml() + (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (renderPollCard() + renderBody()))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
-    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPinModal() + updateToastHtml() + deniedToastHtml();
+    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -2967,6 +2987,7 @@ function render(){
     if(newModal) newModal.scrollTop = modalScrollTop;
   }
   checkTurnAlert();
+  if(pendingVote && pollVotesLoaded && getMyPlayerId()) setTimeout(applyPendingVote, 0);
   if(scrollToPoll){
     const pc = document.getElementById('pollCard');
     if(pc){ scrollToPoll = false; setTimeout(()=>{ try{ pc.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){} }, 50); }
@@ -4379,7 +4400,35 @@ function pollNeedsMyAnswer(){
   return !pollAnswered(pollVotesMap()[me]);
 }
 function pollNoReply(){ const m = pollVotesMap(); return pollEligible().filter(p=>!pollAnswered(m[p.id])); }
-function pollLink(){ return location.origin + location.pathname + '#poll'; }
+function pollLink(vote){
+  const p = S.poll;
+  return location.origin + location.pathname + '?poll=' + encodeURIComponent(p ? p.id : '') + (vote ? '&vote=' + encodeURIComponent(vote) : '');
+}
+function pollLinkFor(poll, vote){ return location.origin + location.pathname + '?poll=' + encodeURIComponent(poll.id) + (vote ? '&vote=' + encodeURIComponent(vote) : ''); }
+function infoToastHtml(){
+  return infoToast ? `<div class="update-toast" role="status"><span>${esc(infoToast)}</span><button class="btn btn-sm" onclick="infoToast=null; render();">OK</button></div>` : '';
+}
+function showInfo(msg){ infoToast = msg; clearTimeout(infoTimer); infoTimer = setTimeout(()=>{ infoToast = null; render(); }, 6000); }
+function applyPendingVote(){
+  const pv = pendingVote; if(!pv) return;
+  const me = getMyPlayerId(); if(!me || !pollVotesLoaded) return;
+  pendingVote = null;
+  const p = S.poll;
+  if(!p || !pollVisible() || (pv.poll && pv.poll !== p.id)){ showInfo('That poll has finished. Here’s the latest one.'); render(); return; }
+  if(pv.vote === 'no'){
+    pollAnswerNo();
+    showInfo('✅ Saved: you can’t make it. Tap below to change.');
+  }else{
+    const o = p.opts.find(x=>x.id===pv.vote);
+    if(!o){ render(); return; }
+    const cur = pollVotesMap()[me];
+    const slots = (cur && !cur.no) ? (cur.slots||[]).filter(x=>x!==o.id) : [];
+    slots.push(o.id);
+    castPollVote(me, slots, false);
+    showInfo('✅ Saved: you’re in for ' + o.label + (p.opts.length>1 && p.status!=='decided' ? '. Tick any other times that work too.' : '.'));
+  }
+  render();
+}
 function openWhatsApp(text){ window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
 function pollPresetSlots(){
   const out = [], now = new Date();
@@ -4409,11 +4458,19 @@ function addPollDraftCustom(){
   if(!pollDraft.opts.includes(l) && pollDraft.opts.length < 8) pollDraft.opts.push(l);
   pollDraft.custom = ''; pollFormErr = ''; render();
 }
+// Every answer gets its own link: one tap opens the app and saves that answer.
 function pollShareText(poll){
   const lines = ['⚽ *' + poll.q + '*'];
-  if(poll.opts.length > 1){ lines.push('Tick every time that works for you:'); poll.opts.forEach(o=>lines.push('• ' + o.label)); }
-  else lines.push('🗓 ' + poll.opts[0].label);
-  lines.push('', '👉 Answer here (one tap): ' + pollLink());
+  if(poll.opts.length > 1){
+    lines.push('Tap every time that works for you:', '');
+    poll.opts.forEach(o=>{ lines.push('🕒 *' + o.label + '*', pollLinkFor(poll, o.id), ''); });
+    lines.push('❌ *No, can’t make it*', pollLinkFor(poll, 'no'));
+  }else{
+    lines.push('🗓 ' + poll.opts[0].label, '');
+    lines.push('✅ *Yes, I’m in*', pollLinkFor(poll, poll.opts[0].id), '');
+    lines.push('❌ *No*', pollLinkFor(poll, 'no'));
+  }
+  lines.push('', 'See who’s coming:', pollLinkFor(poll));
   return lines.join('\n');
 }
 function createPoll(share){
@@ -4469,6 +4526,11 @@ function pollSayNo(pid){
   const v = pollVotesMap()[id];
   castPollVote(id, [], !(v && v.no));   // tapping again clears it
 }
+// "No": for a confirmed poll that means not coming to the confirmed time
+function pollAnswerNo(pid){
+  const id = pid || getMyPlayerId(); if(!id) return;
+  castPollVote(id, [], true);
+}
 // for a single time (or the confirmed one): in / can't make it
 function pollAnswerOne(optId, yes, pid){
   const id = pid || getMyPlayerId(); if(!id) return;
@@ -4502,7 +4564,7 @@ function sharePollNudge(){
   const p = S.poll; if(!p) return;
   const names = pollNoReply().map(x=>x.name);
   if(!names.length) return;
-  openWhatsApp('⏰ Still waiting on: ' + names.join(', ') + '\n' + p.q + '\n👉 ' + pollLink());
+  openWhatsApp('⏰ Still waiting on: ' + names.join(', ') + '\n\n' + pollShareText(p));
 }
 function sharePollConfirm(){
   const p = S.poll; if(!p || p.status!=='decided') return;
@@ -4514,7 +4576,7 @@ function sharePollConfirm(){
   const lines = ['✅ *Confirmed: ' + (o ? o.label : '') + '*', '', '*In (' + ins.length + '):* ' + (ins.join(', ') || '–')];
   if(outs.length) lines.push('*Can’t make it:* ' + outs.join(', '));
   if(quiet.length) lines.push('*No reply:* ' + quiet.join(', '));
-  lines.push('', 'Plans changed? Update your answer: ' + pollLink());
+  lines.push('', 'Plans changed? Can’t make it any more:', pollLinkFor(p, 'no'), '', 'Now in:', pollLinkFor(p, p.decided));
   openWhatsApp(lines.join('\n'));
 }
 function renderPollCard(){
@@ -4529,35 +4591,34 @@ function renderPollCard(){
   const replied = elig.filter(x=>pollAnswered(m[x.id])).length;
   const need = (S.format||6) * 2;
   const decided = p.status==='decided';
+  const single = decided ? p.opts.find(o=>o.id===p.decided) : (p.opts.length===1 ? p.opts[0] : null);
   const optRow = (o)=>{
     const ids = pollNamesFor(o.id), n = ids.length;
     const isMine = !!(mine && !mine.no && (mine.slots||[]).includes(o.id));
     const pct = Math.min(100, Math.round(100*n/Math.max(need,1)));
-    return `<div class="poll-opt ${isMine?'mine':''}">
-      ${(!decided && p.opts.length>1 && me) ? `<button class="poll-tick" onclick="togglePollSlot('${o.id}')" aria-label="${escAttr(o.label)}">${isMine?'✓':''}</button>` : ''}
+    const act = !me ? '' : (single ? `pollAnswerOne('${o.id}', true)` : `togglePollSlot('${o.id}')`);
+    return `<div class="poll-opt yes-opt ${isMine?'mine':''} ${me?'tap':''}" ${act?`onclick="${act}" role="button" tabindex="0"`:''}>
+      ${me ? `<span class="poll-tick">${isMine?'✓':''}</span>` : ''}
       <div class="poll-opt-main">
-        <div class="poll-opt-label">${esc(o.label)}</div>
+        <div class="poll-opt-label">${single ? '✅ Yes' + (decided ? ', I’m in' : '') : esc(o.label)}</div>
         <div class="poll-bar"><i style="width:${pct}%"></i></div>
         <div class="poll-names">${n ? ids.map(id=>esc(playerName(id))).join(', ') : 'Nobody yet'}</div>
       </div>
       <div class="poll-count">${n}<small>of ${need}</small></div>
-      ${(isHost() && !decided) ? `<button class="btn btn-sm" style="flex:none;" onclick="decidePoll('${o.id}')">Pick</button>` : ''}
+      ${(isHost() && !decided) ? `<button class="btn btn-sm" style="flex:none;" onclick="event.stopPropagation(); decidePoll('${o.id}')">Pick</button>` : ''}
     </div>`;
   };
-  const single = decided ? p.opts.find(o=>o.id===p.decided) : (p.opts.length===1 ? p.opts[0] : null);
-  let myButtons = '';
-  if(me && single){
-    const yes = !!(mine && !mine.no && (mine.slots||[]).includes(single.id));
-    const no = !!(mine && pollAnswered(mine) && !yes);
-    myButtons = `<div class="poll-yn">
-      <button class="btn ${yes?'on-yes':''}" onclick="pollAnswerOne('${single.id}', true)">✅ I’m in</button>
-      <button class="btn ${no?'on-no':''}" onclick="pollAnswerOne('${single.id}', false)">❌ Can’t make it</button>
+  const noIds = elig.filter(x=>{ const v = m[x.id]; if(!pollAnswered(v)) return false; return decided ? !(v.slots||[]).includes(p.decided) : !!v.no; }).map(x=>x.id);
+  const myNo = !!(me && noIds.includes(me));
+  const noRow = `<div class="poll-opt no-opt ${myNo?'mine':''} ${me?'tap':''}" ${me?`onclick="pollAnswerNo()" role="button" tabindex="0"`:''}>
+      ${me ? `<span class="poll-tick">${myNo?'✓':''}</span>` : ''}
+      <div class="poll-opt-main">
+        <div class="poll-opt-label">❌ ${single ? 'No' : 'No, can’t make it'}</div>
+        <div class="poll-names">${noIds.length ? noIds.map(id=>esc(playerName(id))).join(', ') : 'Nobody yet'}</div>
+      </div>
+      <div class="poll-count">${noIds.length}</div>
     </div>`;
-  }else if(me && !decided){
-    myButtons = `<div class="poll-yn"><button class="btn ${mine && mine.no ? 'on-no' : ''}" onclick="pollSayNo()">❌ Can’t make any of these</button></div>`;
-  }
   const noReply = pollNoReply();
-  const saidNo = elig.filter(x=>{ const v = m[x.id]; if(!pollAnswered(v)) return false; return decided ? !(v.slots||[]).includes(p.decided) : v.no; });
   const won = decided ? p.opts.find(o=>o.id===p.decided) : null;
   const register = (isHost() && pollRegister) ? `
     <table class="poll-reg">
@@ -4571,11 +4632,11 @@ function renderPollCard(){
       <div class="poll-q">📊 ${esc(p.q)}</div>
       <div class="poll-meta">${replied} of ${elig.length} replied</div>
     </div>
-    ${won ? `<div class="poll-won">✅ Confirmed: ${esc(won.label)}<small>${pollNamesFor(won.id).length} in · ${need} needed for ${S.format}v${S.format}</small></div>` : (p.opts.length>1 ? `<div class="panel-sub" style="margin:4px 0 0;">Tick every time that works for you.</div>` : '')}
+    ${won ? `<div class="poll-won">✅ Confirmed: ${esc(won.label)}<small>${pollNamesFor(won.id).length} in · ${need} needed for ${S.format}v${S.format}</small></div>`
+          : (p.opts.length>1 ? `<div class="panel-sub" style="margin:4px 0 0;">Tick every time that works for you, or No.</div>` : `<div class="poll-when">🗓 ${esc(p.opts[0].label)}</div>`)}
     ${(decided ? [won] : p.opts).filter(Boolean).map(optRow).join('')}
-    ${myButtons}
+    ${noRow}
     ${!me && !isHost() ? `<div class="panel-sub" style="margin-top:8px;">Log in with your name to answer.</div>` : ''}
-    ${saidNo.length ? `<div class="poll-list"><b>Can’t make it (${saidNo.length}):</b> ${saidNo.map(x=>esc(x.name)).join(', ')}</div>` : ''}
     <div class="poll-list"><b>No reply yet (${noReply.length}):</b> ${noReply.length ? noReply.map(x=>esc(x.name)).join(', ') : 'everyone has answered 🎉'}</div>
     ${decided && (S.phase==='setup' || S.phase==='complete') ? `<div class="poll-list">Everyone who’s in has been ticked in for the match. Changing an answer here ticks them in or out.</div>` : ''}
     ${register}
