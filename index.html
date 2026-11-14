@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="d55fc17170">
+<meta name="md-build" content="939656098e">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -4294,7 +4294,7 @@ function profileMatchesHtml(p, isMe){
   }).join('');
   return `
       <div class="pf-section">Past matches${list.length ? ' ('+list.length+')' : ''}</div>
-      ${list.length ? rows : `<div class="empty-note">No matches played yet.</div>`}
+      ${list.length ? rows : `<div class="empty-note">No matches yet. A match shows up here once the host confirms the teams (random split) or the auction finishes, and the score and man of the match appear after the result is saved.</div>`}
       ${list.length > PROFILE_MATCHES_SHOWN ? `<button class="btn btn-sm btn-ghost" style="margin-top:6px;" onclick="profileMatchesAll=!profileMatchesAll; render();">${profileMatchesAll ? 'Show fewer' : 'Show all '+list.length}</button>` : ''}`;
 }
 function renderProfilePage(){
@@ -4341,8 +4341,8 @@ function renderProfilePage(){
           <div>${nameLink(m.id)}<small>${m.g} matches together · ${m.w} won</small></div>
           <div class="mate-pct">${Math.round(100*m.w/m.g)}%</div>
         </div>`).join('') : `<div class="empty-note">Play a couple more matches together to see who ${esc(p.name)} wins with.</div>`}
-      ${profileMatchesHtml(p, isMe)}
       ` : `<div class="empty-note" style="margin-top:14px;">No matches recorded for ${esc(p.name)} yet.</div>`}
+      ${profileMatchesHtml(p, isMe)}
       ${(()=>{ const g = chemistryGroupOf(p.id); const links = g ? g.filter(x=>x!==p.id && findPlayer(x)) : [];
         return `<div class="pf-section">🔗 Chemistry link</div>` + (links.length
           ? `<div class="panel-sub" style="margin:0 0 6px;">${isMe?'You are':esc(p.name)+' is'} linked with these players, so the team split tries to keep them on the same side.</div>` + links.map(id=>`<div class="mate-row"><div>${nameLink(id)}</div><div class="mate-pct">🔗</div></div>`).join('')
