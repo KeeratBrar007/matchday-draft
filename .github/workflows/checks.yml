@@ -1,0 +1,79 @@
+# Matchday Draft: run every test before publishing the site.
+# Upload new files to main -> GitHub tests them on pretend phones ->
+# only if everything passes does the site update. If anything fails,
+# friends keep the last good version and you get an email.
+name: Check and publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (${{ matrix.rules }} database rules)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        rules: [current, privacy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install test tools
+        working-directory: tests
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          pip install opencv-python-headless
+      - name: Build the test copy of the app
+        run: python3 tests/prepare.py
+      - name: Run every test
+        run: bash tests/run.sh ${{ matrix.rules }}
+      - name: Keep logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.rules }}
+          path: |
+            tests/logs/
+            tests/*.png
+          retention-days: 7
+
+  publish:
+    name: Publish the site
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick the files friends need
+        run: |
+          mkdir _site
+          cp index.html _site/
+          for f in sw.js manifest.webmanifest *.png *.svg; do [ -f "$f" ] && cp "$f" _site/; done
+          ls -la _site
+          if grep -q "PASTE_YOUR_HOST_CODE_HERE\|hostClaims/{uid}" _site/index.html; then echo "Rules text found in index.html - stopping"; exit 1; fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
