@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="a6f76b8f34">
+<meta name="md-build" content="08a92d1c01">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -635,6 +635,7 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .pm-row:last-child{border-bottom:0;}
   .poll-card{border-color:var(--amber);}
   .pay-card{border-color:var(--good);}
+  .chip.guest-tag{padding:2px 8px; font-size:.7rem; cursor:default;}
   .bid-more{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
   .bid-custom{display:flex; align-items:center; gap:6px; margin-top:8px;}
   .bid-custom input{min-width:0; flex:1; max-width:150px;}
@@ -1031,7 +1032,8 @@ let dbSearch = '';           // host-only player database search
 let dbPosFilter = 'ALL';     // host-only position filter
 let statsMonth = null;       // 'YYYY-MM' the leaderboard/awards are showing — defaults to the current month
 let addForm = {positions:['MID'], attributes:{}, unknown:false, star:false}; // draft state for the add-player form
-let guestForm = {name:'', positions:['MID']}; // draft state for the "add a guest for today" quick-add
+let guestForm = {name:'', positions:['MID'], of:[]};   // of: player ids who brought them, or ['*'] for everyone playing
+let guestEditId = null; // draft state for the "add a guest for today" quick-add
 let resultDraft = {winner:null, scoreA:'', scoreB:'', duration:'', scorers:[], assists:[], saved:false, ps:{}, wktsA:'', wktsB:''}; // draft match-result form
 let logDraft = null;         // draft state for "log a match played outside the app"
 let editingHistoryId = null; // history entry currently being edited, or null
@@ -2050,13 +2052,13 @@ function addPlayer(name, positions, attributes, unknown, star){
 // shows up in roster management, next time's match-day picker, the
 // chemistry-link builder, or the monthly awards board. Open to anyone, same
 // as ticking your own name in the picker.
-function addGuestPlayer(name, positions){
+function addGuestPlayer(name, positions, of){
   name = (name||'').trim();
   if(!name) return;
   positions = (positions||[]).filter(p=>POSITIONS[p]);
   if(!positions.length) positions = ['MID'];
   const id = uniqueId(slugify(name), allPlayerIds());
-  const guest = {id, name, positions, guest:true};
+  const guest = {id, name, positions, guest:true, of: (of||[]).slice()};
   const next = cloneSquad();
   next.guests = (next.guests||[]).concat([guest]);
   saveSquadDoc(next);
@@ -2070,9 +2072,45 @@ function toggleGuestPosition(pos, btn){
 }
 function submitGuestPlayer(){
   if(!isHost()) return;
-  addGuestPlayer(guestForm.name, guestForm.positions);
-  guestForm = {name:'', positions:['MID']};
+  addGuestPlayer(guestForm.name, guestForm.positions, guestForm.of);
+  guestForm = {name:'', positions:['MID'], of:[]};
   render();
+}
+// ---- "guest of": one person, several, or everyone playing ----
+function guestOf(id){ const g = (SQUAD.guests||[]).find(x=>x.id===id); return g ? (g.of||[]) : []; }
+function guestOfText(id, ofList){
+  const of = ofList || guestOf(id);
+  if(!of.length) return '';
+  if(of.includes('*')) return 'everyone’s guest';
+  const n = of.map(playerName).filter(Boolean);
+  return 'guest of ' + (n.length<=2 ? n.join(' & ') : n.slice(0,-1).join(', ') + ' & ' + n[n.length-1]);
+}
+function guestTag(id){
+  if(!isGuest(id)) return '';
+  const t = guestOfText(id);
+  return ` <span class="chip guest-tag">${t ? esc(t.charAt(0).toUpperCase() + t.slice(1)) : 'Guest'}</span>`;
+}
+function toggleGuestOf(list, pid){
+  if(pid==='*') return list.includes('*') ? [] : ['*'];
+  const l = list.filter(x=>x!=='*');
+  return l.includes(pid) ? l.filter(x=>x!==pid) : l.concat([pid]);
+}
+function guestOfFormToggle(pid){ guestForm.of = toggleGuestOf(guestForm.of, pid); render(); }
+function guestOfEditToggle(gid, pid){
+  if(!isHost()) return;
+  const next = cloneSquad();
+  const g = (next.guests||[]).find(x=>x.id===gid); if(!g) return;
+  g.of = toggleGuestOf(g.of||[], pid);
+  saveSquadDoc(next);
+}
+function guestOfChipsHtml(current, onTap, excludeId){
+  const sel = (S.selectedIds||[]).filter(id=>!isGuest(id) && id!==excludeId && findPlayer(id));
+  const pool = sel.length ? sel : rosterPlayersArr().map(p=>p.id);
+  const all = current.includes('*');
+  return `<div class="chip-toggle-row" style="margin-top:6px;">
+    <button type="button" class="chip-toggle ${all?'active':''}" onclick="${onTap('*')}">👥 Everyone playing</button>
+    ${pool.map(id=>`<button type="button" class="chip-toggle ${!all && current.includes(id)?'active':''}" onclick="${onTap(id)}">${esc(playerName(id))}</button>`).join('')}
+  </div>`;
 }
 
 // Bring a not-yet-ranked player into the ability ordering, inserted at the
@@ -3893,8 +3931,10 @@ function renderSetup(){
         <span class="rank-badge">${rankLabel}</span>
         <span class="check-box">${checked?'✓':''}</span>
         <span class="badge-row">${posBadges(p.id)}${starBadge(p.id)}${chemBadge(p.id)}</span>
-        <span class="player-name">${esc(p.name)}${p.guest?' <span class="chip" style="padding:2px 8px; font-size:.7rem;">Guest</span>':''}</span>
+        <span class="player-name">${esc(p.name)}${p.guest ? guestTag(p.id) : ''}</span>
+        ${p.guest && isHost() ? `<button type="button" class="icon-btn" title="Whose guest?" onclick="event.stopPropagation(); guestEditId = (guestEditId==='${p.id}' ? null : '${p.id}'); render();">✎</button>` : ''}
       </div>
+      ${p.guest && isHost() && guestEditId===p.id ? `<div class="edit-panel" onclick="event.stopPropagation();"><div class="edit-label">${esc(p.name)} is a guest of…</div>${guestOfChipsHtml(guestOf(p.id), pid=>`guestOfEditToggle('${p.id}','${pid}')`, p.id)}</div>` : ''}
     </li>`;
   }
 
@@ -3950,6 +3990,8 @@ function renderSetup(){
       ${POSITION_ORDER.map(pos=>`<button type="button" class="chip-toggle ${guestForm.positions.includes(pos)?'active':''}" onclick="toggleGuestPosition('${pos}', this)">${POSITIONS[pos].label}</button>`).join('')}
       <button class="btn btn-sm" onclick="submitGuestPlayer()">+ Guest for today</button>
     </div>
+    <div class="edit-label" style="margin-top:8px;">Guest of <span style="text-transform:none; letter-spacing:0; font-weight:400;">(who brought them; pick one, several, or everyone)</span></div>
+    ${guestOfChipsHtml(guestForm.of, pid=>`guestOfFormToggle('${pid}')`)}
     <div class="panel-sub" style="margin-top:4px;">One-off fill-in — counts today, but won't clutter the permanent database or monthly awards.</div>` : ''}
   </div>
 
@@ -4141,7 +4183,7 @@ function renderModeChoice(){
 /* ---- Random result ---- */
 function teamListHtml(ids){
   if(!ids.length) return `<div class="slot-empty">— none —</div>`;
-  return `<ul>${ids.map(id=>`<li><span>${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}</span></li>`).join('')}</ul>`;
+  return `<ul>${ids.map(id=>`<li><span>${esc(playerName(id))} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}${guestTag(id)}</span></li>`).join('')}</ul>`;
 }
 function teamCompHtml(ids){
   return `<span class="team-comp">${compositionLine(ids)}${noKeeperNote(ids)}</span>`;
@@ -4432,7 +4474,7 @@ function renderComplete(){
     return `<ul>${ids.map(id=>{
       const rec = priceOf(id);
       const isCap = id===capId;
-      return `<li><span>${nameLink(id)} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}${isCap?'<span class="cap-tag">C</span>':''}</span>${rec && !isCap ? `<span class="price">${rec.free?'free':'₹'+rec.price}</span>`:''}</li>`;
+      return `<li><span>${nameLink(id)} ${posBadges(id)}${starBadge(id)}${chemBadge(id)}${guestTag(id)}${isCap?'<span class="cap-tag">C</span>':''}</span>${rec && !isCap ? `<span class="price">${rec.free?'free':'₹'+rec.price}</span>`:''}</li>`;
     }).join('')}</ul>`;
   }
   function compAndBudget(ids, budgetLeft){
@@ -6076,9 +6118,22 @@ function feeOf(h){ return (h && h.fees && Array.isArray(h.fees.items)) ? h.fees 
 function feeTotal(f){ return (f.items||[]).reduce((n,i)=>n+(Number(i.amount)||0),0); }
 function feeEach(f){ const n = (f.players||[]).length; return n ? Math.ceil(feeTotal(f)/n) : 0; }
 function feeShareMap(f){
-  const out = {};
+  const out = {}, incl = {}, coveredBy = {};
   (f.players||[]).forEach(id=>{ out[id] = f.split==='custom' ? Math.max(0, Number((f.custom||{})[id])||0) : feeEach(f); });
-  return out;
+  if(f.guestsByHost){
+    const go = f.guestOf || {};
+    const regular = (f.players||[]).filter(x=>!go[x]);
+    Object.keys(go).forEach(gid=>{
+      if(!(gid in out) || !out[gid]) return;
+      const of = go[gid] || [];
+      const payers = of.includes('*') ? regular : of.filter(x=>regular.includes(x));
+      if(!payers.length) return;
+      const each = Math.ceil(out[gid] / payers.length);
+      out[gid] = 0; coveredBy[gid] = payers;
+      payers.forEach(x=>{ out[x] = (out[x]||0) + each; (incl[x] = incl[x] || []).push(gid); });
+    });
+  }
+  return {out, incl, coveredBy};
 }
 function feeSpentMap(f){
   const out = {};
@@ -6086,17 +6141,18 @@ function feeSpentMap(f){
   return out;
 }
 function feeLines(f){
-  const sh = feeShareMap(f), sp = feeSpentMap(f), cid = f.collectorId || null;
+  const sm = feeShareMap(f), sh = sm.out, sp = feeSpentMap(f), cid = f.collectorId || null;
   const ids = Array.from(new Set((f.players||[]).concat(Object.keys(sp))));
   return ids.map(id=>{
     const share = sh[id]||0, spent = sp[id]||0, isC = id===cid, net = share - spent;
-    return {id, share, spent, collector:isC, owes: isC ? 0 : Math.max(0, net), back: isC ? 0 : Math.max(0, -net), paid: (f.paid||{})[id] || null};
+    return {id, share, spent, collector:isC, owes: isC ? 0 : Math.max(0, net), back: isC ? 0 : Math.max(0, -net), paid: (f.paid||{})[id] || null,
+            incl: sm.incl[id] || [], coveredBy: sm.coveredBy[id] || null};
   });
 }
 function outstandingFor(id){
   return HISTORY.filter(feeOf).map(h=>{
     const l = feeLines(h.fees).find(x=>x.id===id);
-    return (l && l.owes>0 && !l.paid) ? {h, amount:l.owes} : null;
+    return (l && l.owes>0 && !l.paid) ? {h, amount:l.owes, incl:l.incl} : null;
   }).filter(Boolean);
 }
 function allOutstanding(){
@@ -6124,6 +6180,7 @@ function qrSvg(text, px){
   }catch(e){ return ''; }
 }
 function payLink(){ return siteBase() + '?g=' + encodeURIComponent(currentSquadId||'') + '&pay=1'; }
+function feeGuestNames(ids){ return (ids||[]).map(playerName).sort((a,b)=>a.localeCompare(b)).join(', '); }
 function feeDateText(h){ return new Date(h.date).toLocaleDateString(undefined,{weekday:'short', day:'numeric', month:'short'}); }
 function rupees(n){ return '₹' + Math.round(Number(n)||0).toLocaleString('en-IN'); }
 function copyText(t){
@@ -6136,7 +6193,9 @@ function feeShareText(h, f){
   if(f.split!=='custom') lines.push('*' + rupees(feeEach(f)) + ' each* · ' + (f.players||[]).length + ' players');
   const ls = feeLines(f);
   const owing = ls.filter(l=>l.owes>0), covered = ls.filter(l=>!l.collector && l.owes===0 && l.spent>0 && l.back===0), backs = ls.filter(l=>l.back>0);
-  if(owing.length){ lines.push('', '*To pay:*'); owing.forEach(l=>lines.push('• ' + playerName(l.id) + ' ' + rupees(l.owes) + (l.spent ? ' (' + rupees(l.spent) + ' already spent)' : ''))); }
+  if(owing.length){ lines.push('', '*To pay:*'); owing.forEach(l=>lines.push('• ' + playerName(l.id) + ' ' + rupees(l.owes) + (l.incl.length ? ' (incl. guest ' + feeGuestNames(l.incl) + ')' : '') + (l.spent ? ' (' + rupees(l.spent) + ' already spent)' : ''))); }
+  const gc = ls.filter(l=>l.coveredBy);
+  if(gc.length) lines.push('🙋 Guests: ' + gc.map(l=>playerName(l.id) + ' (' + guestOfText(l.id, (f.guestOf||{})[l.id]) + ')').join(', '));
   if(covered.length) lines.push('', '✅ Already covered: ' + covered.map(l=>playerName(l.id)).join(', '));
   if(backs.length) lines.push('↩️ Gets money back: ' + backs.map(l=>playerName(l.id) + ' ' + rupees(l.back)).join(', '));
   const p = payInfo();
@@ -6162,8 +6221,12 @@ function openFeeEditor(hid){
   feeDraft = ex ? JSON.parse(JSON.stringify(ex)) : {
     items: (tpl && tpl.items && tpl.items.length) ? tpl.items.map(i=>({label:i.label, amount:i.amount, paidBy: i.by==='_c' ? '_c' : ''})) : [{label:'Turf', amount:'', paidBy:'_c'}],
     players: players.slice(), split: (tpl && tpl.split) || 'equal', custom: {}, paid: {},
-    collectorId: payInfo().playerId || null
+    collectorId: payInfo().playerId || null, guestsByHost: true
   };
+  // who brought each guest (kept on the costs, so it survives the guest being tidied away)
+  feeDraft.guestOf = Object.assign({}, feeDraft.guestOf || {});
+  players.filter(isGuest).forEach(g=>{ const of = guestOf(g); if(of.length) feeDraft.guestOf[g] = of.slice(); });
+  if(feeDraft.guestsByHost==null) feeDraft.guestsByHost = true;
   feeDraft._all = players; feeDraft._err = '';
   feeEditId = hid; showPayments = false; render();
 }
@@ -6178,7 +6241,9 @@ function cleanFee(d){
   const custom = {};
   if(d.split==='custom') players.forEach(id=>{ custom[id] = Math.max(0, Math.round(Number(d.custom[id])||0)); });
   const paid = {}; Object.keys(d.paid||{}).forEach(id=>{ if(players.includes(id) || items.some(i=>i.paidBy===id)) paid[id] = d.paid[id]; });
-  return {items, players, split: d.split==='custom' ? 'custom' : 'equal', custom, paid, collectorId: d.collectorId || null, createdAt: d.createdAt || new Date().toISOString()};
+  const guestOfSnap = {}; Object.keys(d.guestOf||{}).forEach(g=>{ if(players.includes(g) && (d.guestOf[g]||[]).length) guestOfSnap[g] = d.guestOf[g].slice(); });
+  return {items, players, split: d.split==='custom' ? 'custom' : 'equal', custom, paid, collectorId: d.collectorId || null, createdAt: d.createdAt || new Date().toISOString(),
+          guestsByHost: d.guestsByHost!==false, guestOf: guestOfSnap};
 }
 function saveFees(share){
   const h = HISTORY.find(x=>x.id===feeEditId); if(!h || !feeDraft) return;
@@ -6217,11 +6282,13 @@ function renderFeeEditor(){
   const payerOpts = (sel)=> `<option value="_c" ${sel==='_c'?'selected':''}>${esc(collectorName)}</option><option value="" ${sel===''?'selected':''}>— who paid? —</option>` + all.map(id=>`<option value="${id}" ${sel===id?'selected':''}>${esc(playerName(id))}</option>`).join('');
   const res = id=>{
     const l = lineOf(id); if(!l) return '<span class="res">free</span>';
-    if(l.collector) return `<span class="res">collects the money</span>`;
+    if(l.coveredBy) return `<span class="res" style="color:var(--good);">paid by ${esc(((d.guestOf||{})[id]||[]).includes('*') ? 'everyone' : feeGuestNames(l.coveredBy))}</span>`;
+    if(l.collector) return `<span class="res">collects the money${l.incl.length ? ' (covers ' + esc(feeGuestNames(l.incl)) + ')' : ''}</span>`;
     if(l.back>0) return `<span class="res" style="color:var(--good);">gets back ${rupees(l.back)}</span>`;
     if(l.owes===0) return `<span class="res" style="color:var(--good);">covered ✓</span>`;
-    return `<span class="res">owes <b class="pay-amt">${rupees(l.owes)}</b></span>`;
+    return `<span class="res">owes <b class="pay-amt">${rupees(l.owes)}</b>${l.incl.length ? '<br>incl. ' + esc(feeGuestNames(l.incl)) : ''}</span>`;
   };
+  const hasGuests = all.some(id=>d.guestOf && d.guestOf[id]);
   const customSum = prev.split==='custom' ? prev.players.reduce((n,id)=>n+(prev.custom[id]||0),0) : 0;
   return `
   <div class="modal-backdrop" onclick="if(event.target===this) closeFeeEditor();">
@@ -6253,13 +6320,14 @@ function renderFeeEditor(){
         Total <b>${rupees(total)}</b>${d.split!=='custom' ? ` · ${prev.players.length} sharing · <b>${rupees(feeEach(prev))} each</b>${prev.players.length && total % prev.players.length ? ' (rounded up)' : ''}` : ` · custom amounts add up to <b>${rupees(customSum)}</b>${customSum!==total ? ` <span style="color:var(--danger);">(${customSum>total?'+':''}${rupees(customSum-total)} vs total)</span>` : ' ✓'}`}
       </div>
       ${all.map(id=>`<div class="fee-pl">
-        <label><input type="checkbox" ${d.players.includes(id)?'checked':''} onchange="feeTogglePlayer('${id}')"> ${esc(playerName(id))}${id===d.collectorId ? ' <span class="chip" style="padding:1px 7px; font-size:.68rem;">collector</span>' : ''}</label>
+        <label><input type="checkbox" ${d.players.includes(id)?'checked':''} onchange="feeTogglePlayer('${id}')"> ${esc(playerName(id))}${id===d.collectorId ? ' <span class="chip" style="padding:1px 7px; font-size:.68rem;">collector</span>' : ''}${(d.guestOf||{})[id] ? ' <span class="chip guest-tag">' + esc(guestOfText(id, d.guestOf[id])) + '</span>' : ''}</label>
         <span style="display:flex; align-items:center; gap:8px;">
           ${d.split==='custom' && d.players.includes(id) ? `<input type="number" class="field-input" min="0" inputmode="numeric" placeholder="₹" value="${(d.custom[id]===''||d.custom[id]==null)?'':d.custom[id]}" onchange="feeSetCustom('${id}', this.value); render();">` : ''}
           ${d.players.includes(id) ? res(id) : '<span class="res">not paying</span>'}
         </span>
       </div>`).join('')}
       <div class="panel-sub" style="margin:8px 0 0;">Untick anyone who plays free.</div>
+      ${hasGuests ? `<label class="fee-pl" style="border:0; cursor:pointer;"><span style="display:flex; gap:8px; align-items:center;"><input type="checkbox" ${d.guestsByHost!==false?'checked':''} onchange="feeDraft.guestsByHost=this.checked; render();"> Guests’ share is paid by whoever brought them</span></label>` : ''}
       ${d._err ? `<div class="login-err">${esc(d._err)}</div>` : ''}
       <div class="footer-actions" style="margin-top:14px; justify-content:flex-start; flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="saveFees(true)">💬 Save &amp; send to WhatsApp</button>
@@ -6306,7 +6374,7 @@ function renderPaymentsModal(){
         <button class="btn btn-sm btn-ghost" onclick="openFeeEditor('${h.id}')">Edit</button>
       </div>
       ${owing.map(l=>`<div class="pay-row">
-        <span class="who">${esc(playerName(l.id))}<small>${rupees(l.owes)}${l.paid ? ' · paid by ' + l.paid.how.toUpperCase() : ''}</small></span>
+        <span class="who">${esc(playerName(l.id))}<small>${rupees(l.owes)}${l.incl.length ? ' incl. ' + esc(feeGuestNames(l.incl)) : ''}${l.paid ? ' · paid by ' + l.paid.how.toUpperCase() : ''}</small></span>
         <span class="pay-btns">
           <button class="btn btn-sm ${l.paid && l.paid.how==='upi' ? 'on' : ''}" onclick="markPaid('${h.id}','${l.id}','upi')">UPI ✓</button>
           <button class="btn btn-sm ${l.paid && l.paid.how==='cash' ? 'on' : ''}" onclick="markPaid('${h.id}','${l.id}','cash')">Cash ✓</button>
@@ -6339,7 +6407,7 @@ function myPayCardHtml(where){
   const total = out.reduce((n,x)=>n+x.amount,0), p = payInfo(), link = upiLink(total, SPORT.name + ' ' + out.map(x=>feeDateText(x.h)).join(', '));
   const body = `
     <div class="poll-head"><div class="poll-q">💰 You owe <span class="pay-amt">${rupees(total)}</span></div><div class="poll-meta">${out.length} match${out.length===1?'':'es'}</div></div>
-    ${out.map(x=>`<div class="pay-row"><span>${esc(feeDateText(x.h))}</span><span class="pay-amt">${rupees(x.amount)}</span></div>`).join('')}
+    ${out.map(x=>`<div class="pay-row"><span>${esc(feeDateText(x.h))}${x.incl && x.incl.length ? `<small>incl. guest${x.incl.length>1?'s':''}: ${esc(feeGuestNames(x.incl))}</small>` : ''}</span><span class="pay-amt">${rupees(x.amount)}</span></div>`).join('')}
     ${upiOk(p.upi) ? `
       <div class="panel-sub" style="margin:10px 0 6px;">Pay <b>${esc(p.name||'the host')}</b> · UPI <b>${esc(p.upi)}</b> <button class="btn btn-sm btn-ghost" onclick="copyText(payInfo().upi)">${payCopyFlash ? '✅ Copied' : 'Copy'}</button></div>
       <div class="poll-actions" style="margin-top:4px;">
