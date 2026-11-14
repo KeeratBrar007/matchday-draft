@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="1b207fe2d9">
+<meta name="md-build" content="fe799d4c77">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -600,6 +600,7 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .form-chip{width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.82rem; color:#fff;}
   .pm-row{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--line);}
   .pm-row:last-child{border-bottom:0;}
+  .pm-vote .panel{margin:8px 0 0; padding:12px;}
   .pm-row .form-chip{flex:none;}
   .pm-main{flex:1; min-width:0;}
   .pm-top{font-weight:700; font-size:.92rem;}
@@ -919,7 +920,8 @@ let statsSeason = null;      // 'YYYY' shown in the season view (defaults to thi
 let showBackup = false;       // host-only backup & restore modal
 let restoreDraft = null;      // {data, summary, error} parsed from a chosen backup file
 let restoreArm = false, restoreBusy = '', backupBusy = false, backupMsg = '';
-let profileMatchesAll = false; // profile 'Past matches': show every match instead of the latest few
+let profileMatchesAll = false;
+let profileVoteOpen = null;   // match id whose man-of-the-match vote is expanded on your profile // profile 'Past matches': show every match instead of the latest few
 let profileTab = 'stats';    // profile card tab: 'stats' | 'rivals'
 let RIVALS = [];             // rivalry docs for the active squad
 let unsubRiv = null;
@@ -2959,7 +2961,7 @@ function renderTopbar(){
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleAttendance()">📋 Attendance</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleBackup()">💾 Backup</button>` : ''}
       ${themeBtnHtml()}
-      <button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>
+      ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleHistory()">📜 Past matches${HISTORY.length? ' ('+HISTORY.length+')':''}</button>` : ''}
       ${isHost() ? `
       <span class="chip" style="cursor:default;">Host</span>
       ${(isHostDevice && db) ? `<button class="btn btn-ghost btn-sm" onclick="releaseHost()" title="Log out of host mode on this device">Step down</button>` : ''}
@@ -4239,6 +4241,7 @@ function lineupLinks(ids, names){
   return names.map(esc).join(', ');
 }
 function renderHistoryModal(){
+  if(showHistory && !isHost()) showHistory = false;
   if(!showHistory) return '';
   const items = HISTORY.length ? HISTORY.map(h=>`
     <div class="history-item">
@@ -4535,6 +4538,13 @@ function profileMatchesHtml(p, isMe){
         <div class="pm-sub">${isMe?'You':esc(p.name)} played for <b>Team ${side.toUpperCase()}</b>${extra ? ' · '+extra : ''}</div>
         <div class="pm-sub">🏅 Man of the match: ${potmLineHtml(h, p.id)}</div>
         ${priceLineHtml(h, p.id)}
+        ${isMe ? (()=>{
+          const pv = h.potmVotes || {};
+          const done = ['a','b'].every(t=> !(h[t==='a'?'teamAIds':'teamBIds']||[]).length || ((pv[t]||{})[p.id]));
+          const open = profileVoteOpen===h.id;
+          return `<button class="btn btn-sm ${done?'btn-ghost':''}" style="margin-top:6px;" onclick="profileVoteOpen=${open?'null':`'${h.id}'`}; render();">${open ? 'Close voting' : (done ? '🏅 Change your vote' : '🏅 Vote for man of the match')}</button>
+          ${open ? `<div class="pm-vote">${potmVotingHtml(h)}</div>` : ''}`;
+        })() : ''}
       </div>
     </div>`;
   }).join('');
