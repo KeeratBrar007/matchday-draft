@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="caafc261f0">
+<meta name="md-build" content="16d0467ba4">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -646,6 +646,25 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .pm-row:last-child{border-bottom:0;}
   .poll-card{border-color:var(--amber);}
   .pay-card{border-color:var(--good);}
+  .live-card{border-color:var(--line-strong);}
+  .live-card.on{border-color:var(--danger);}
+  .live-head{font-size:.78rem; font-weight:700; letter-spacing:.12em; color:var(--danger); display:flex; align-items:center; gap:6px;}
+  .live-card:not(.on) .live-head{color:var(--chalk-dim);}
+  .live-dot{width:9px; height:9px; border-radius:50%; background:var(--danger); animation:livepulse 1.2s infinite;}
+  @keyframes livepulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+  @media (prefers-reduced-motion: reduce){ .live-dot{animation:none;} }
+  .live-score{display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; margin:10px 0 6px;}
+  .live-score .ln{font-family:'Space Mono',monospace; font-weight:700; font-size:2.6rem; display:flex; gap:10px; align-items:center;}
+  .live-score .ln i{font-style:normal; color:var(--chalk-faint);}
+  .lt{font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.06em;}
+  .lt.a{color:var(--teamA); text-align:right;} .lt.b{color:var(--teamB);}
+  .live-grid .lt{text-align:left;}
+  .live-feed{font-size:.85rem; color:var(--chalk-dim); border-top:1px solid var(--line); padding-top:8px; line-height:1.6;}
+  .live-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
+  .live-btns{display:flex; flex-wrap:wrap; gap:6px;}
+  .live-btn{flex:1 1 60px; min-height:52px; font-size:1.05rem; font-weight:700;}
+  .live-pick{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px;}
+  .live-pick .btn{min-height:48px;}
   .chip.guest-tag{padding:2px 8px; font-size:.7rem; cursor:default;}
   .bid-more{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
   .bid-custom{display:flex; align-items:center; gap:6px; margin-top:8px;}
@@ -1530,8 +1549,9 @@ setInterval(()=>{
   if(S && (S.phase==='captains' || S.phase==='budget' || S.phase==='auction')) resyncNow(false);
 }, 5000);
 
+let subDenied = false;
 function subscribeToSquad(id){
-  rosterLoaded = false;
+  rosterLoaded = false; subDenied = false;
   if(unsubRoster) unsubRoster();
   if(unsubMatch) unsubMatch();
   if(unsubHistory) unsubHistory();
@@ -1541,19 +1561,20 @@ function subscribeToSquad(id){
     SQUAD = snap.exists ? Object.assign(defaultSquad(), snap.data()) : defaultSquad();
     ensureRankBaselineFresh();
     rosterLoaded = true;
+    syncMembership();
     render();
-  }, ()=>{ rosterLoaded = true; render(); });
+  }, ()=>{ SQUAD = defaultSquad(); rosterLoaded = true; subDenied = true; render(); });
   unsubMatch = db.doc('squads/'+id+'/state/match').onSnapshot(snap=>{
     S = snap.exists ? Object.assign(defaultState(), snap.data()) : defaultState();
     matchLoadedFor = id;
     dbReady = true;
     render();
-  }, ()=>{ dbReady = true; render(); });
+  }, ()=>{ S = defaultState(); matchLoadedFor = id; dbReady = true; render(); });
   unsubHistory = db.collection('squads/'+id+'/history').orderBy('date','desc').limit(200).onSnapshot(qsnap=>{
     HISTORY = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
     historyLoadedFor = id;
     render();
-  }, ()=>{});
+  }, ()=>{ HISTORY = []; historyLoadedFor = id; });
   if(unsubPoll) unsubPoll();
   POLLVOTES = [];
   pollVotesLoaded = false;
@@ -1561,11 +1582,11 @@ function subscribeToSquad(id){
     POLLVOTES = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
     pollVotesLoaded = true;
     render();
-  }, ()=>{ pollVotesLoaded = true; });
+  }, ()=>{ POLLVOTES = []; pollVotesLoaded = true; });
   unsubRiv = db.collection('squads/'+id+'/rivalries').onSnapshot(qsnap=>{
     RIVALS = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
     render();
-  }, ()=>{});
+  }, ()=>{ RIVALS = []; });
 }
 
 // First-ever load of the new multi-squad structure: brings this artifact's
@@ -1599,6 +1620,108 @@ async function migrateOrCreateDefaultSquad(){
   migratingSquad = false;
 }
 
+/* ---- game privacy ----
+   With the privacy rules, a friend's phone can only read the games whose
+   member list contains the name it logged in as (logins/<sign-in id>).
+   The host's app keeps two things up to date automatically:
+     squads/<id>.members  -  normalised names on that game's player list
+     access/<name key>    -  {squads:[ids]} so a phone can find its games
+                             without listing every game (needs the exact name)
+   Under the older open rules everything below still works the old way. */
+let squadsUnsub = null, accessUnsub = null, squadDocUnsubs = {}, squadDocCache = {}, squadsMode = 'list', accessIds = null;
+let memberSyncTimer = null, membershipSyncedOnce = false, loginWriteDenied = false, accessWriteDenied = false;
+const accessWritten = {};
+function accessKey(name){ return sha256Hex('md-access|' + normName(name)).slice(0, 24); }
+function setSquadsList(list){
+  squadsList = list.slice().sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+  squadsLoaded = true;
+  const me0 = normName(getLoginName());
+  if(subDenied && currentSquadId && me0 && squadsList.some(x=>x.id===currentSquadId && (x.members||[]).includes(me0))) subscribeToSquad(currentSquadId);
+  if(pickedSquadId && !squadsList.some(x=>x.id===pickedSquadId) && squadsMode==='list'){
+    pickedSquadId = null; try{ localStorage.removeItem('md_squad'); }catch(e){}
+  }
+  followTarget();
+  loadAllRosters();
+  render();
+}
+function watchSquads(){
+  if(squadsUnsub){ squadsUnsub(); squadsUnsub = null; }
+  squadsUnsub = db.collection('squads').orderBy('createdAt','asc').onSnapshot(qsnap=>{
+    squadsMode = 'list';
+    setSquadsList(qsnap.docs.map(d=>Object.assign({id:d.id}, d.data())));
+  }, ()=>{
+    // not allowed to list every game: find my own games by name instead
+    squadsMode = 'access';
+    watchMySquadsByAccess();
+  });
+}
+function watchMySquadsByAccess(){
+  if(accessUnsub){ accessUnsub(); accessUnsub = null; }
+  Object.values(squadDocUnsubs).forEach(u=>u()); squadDocUnsubs = {}; squadDocCache = {};
+  const n = getLoginName();
+  accessIds = null;
+  if(!n){ accessIds = []; setSquadsList([]); return; }
+  accessUnsub = db.doc('access/' + accessKey(n)).onSnapshot(snap=>{
+    const ids = (snap.exists && snap.data() && snap.data().squads) || [];
+    accessIds = ids.slice();
+    Object.keys(squadDocUnsubs).forEach(id=>{ if(!ids.includes(id)){ squadDocUnsubs[id](); delete squadDocUnsubs[id]; delete squadDocCache[id]; } });
+    if(!ids.length){ setSquadsList([]); return; }
+    ids.forEach(id=>{
+      if(squadDocUnsubs[id]) return;
+      squadDocUnsubs[id] = db.doc('squads/' + id).onSnapshot(sn=>{
+        if(sn.exists) squadDocCache[id] = Object.assign({id}, sn.data()); else delete squadDocCache[id];
+        setSquadsList(Object.values(squadDocCache));
+      }, ()=>{ delete squadDocCache[id]; delete squadDocUnsubs[id]; setSquadsList(Object.values(squadDocCache)); });
+    });
+  }, ()=>{ accessIds = []; setSquadsList([]); });
+}
+async function writeLogin(){
+  if(!db || !AUTH_UID || isHost()) return;
+  const n = normName(getLoginName()); if(!n) return;
+  if(loginWriteDenied) return;
+  try{ await db.doc('logins/' + AUTH_UID).set({name: n, at: new Date().toISOString()}); }
+  catch(e){ if(e && e.code==='permission-denied') loginWriteDenied = true; /* older rules: not needed */ }
+}
+// after a friend logs in: tell the database who this phone is, then re-read
+// re-open the live connections after this phone's permissions change
+function reconnectAll(){
+  if(!db) return;
+  watchSquads();
+  if(currentSquadId) subscribeToSquad(currentSquadId);
+  loadAllRosters();
+}
+async function afterLogin(){
+  if(!db || isHost()) return;
+  await writeLogin();
+  if(squadsMode==='access') watchMySquadsByAccess();
+  else watchSquads();
+  if(currentSquadId) subscribeToSquad(currentSquadId);
+  loadAllRosters();
+}
+function syncMembership(){
+  if(!db || !isHost() || !squadsLoaded || !allRostersLoaded) return;
+  clearTimeout(memberSyncTimer);
+  memberSyncTimer = setTimeout(()=>{
+    const byName = {}, affected = new Set();
+    squadsList.forEach(sq=>{
+      const names = Array.from(new Set(namesInGame(sq.id).map(normName).filter(Boolean))).sort();
+      const old = (sq.members||[]).slice().sort();
+      if(JSON.stringify(names) !== JSON.stringify(old)){
+        db.doc('squads/' + sq.id).update({members: names}).catch(()=>{});
+        old.concat(names).forEach(x=>affected.add(x));
+      }
+      names.forEach(x=>{ (byName[x] = byName[x] || new Set()).add(sq.id); });
+    });
+    if(!membershipSyncedOnce){ Object.keys(byName).forEach(x=>affected.add(x)); membershipSyncedOnce = true; }
+    affected.forEach(x=>{
+      if(accessWriteDenied) return;   // older rules: the index isn't needed
+      const ids = Array.from(byName[x] || []).sort(), k = accessKey(x), js = JSON.stringify(ids);
+      if(accessWritten[k]===js) return;
+      accessWritten[k] = js;
+      db.doc('access/' + k).set({squads: ids}).catch(e=>{ delete accessWritten[k]; if(e && e.code==='permission-denied'){ accessWriteDenied = true; membershipSyncedOnce = false; } });
+    });
+  }, 300);
+}
 function loadAllRosters(){
   if(!db) return;
   clearTimeout(rosterLoadTimer);
@@ -1610,6 +1733,7 @@ function loadAllRosters(){
     }).catch(()=>{ out[sq.id] = []; })));
     const changed = !allRostersLoaded || JSON.stringify(out) !== JSON.stringify(allRosters);
     allRosters = out; allRostersLoaded = true;
+    syncMembership();
     if(loginRetryPending){ loginRetryPending = false; submitLogin(); return; }
     if(changed) render();
   }, 150);
@@ -1880,6 +2004,7 @@ async function initDb(){
   setTimeout(()=>{ if(!(dbReady && rosterLoaded)){ slowConnect = true; render(); } }, 10000);
   await ensureAuth();
   syncHostClaim();
+  if(!isHost() && getLoginName()) await writeLogin();
 
   pinsLoaded = false;
   db.collection('pins').onSnapshot(qsnap=>{
@@ -1889,16 +2014,7 @@ async function initDb(){
     render();
   }, ()=>{ pinsLoaded = true; render(); });
 
-  db.collection('squads').orderBy('createdAt','asc').onSnapshot(qsnap=>{
-    squadsList = qsnap.docs.map(d=>Object.assign({id:d.id}, d.data()));
-    squadsLoaded = true;
-    if(pickedSquadId && !squadsList.some(x=>x.id===pickedSquadId)){
-      pickedSquadId = null; try{ localStorage.removeItem('md_squad'); }catch(e){}
-    }
-    followTarget();
-    loadAllRosters();
-    render();
-  }, ()=>{});
+  watchSquads();
 
   db.doc('app/current').onSnapshot(snap=>{
     const id = snap.exists ? snap.data().squadId : null;
@@ -2413,6 +2529,8 @@ function dragPointerDown(target, x, y, isTouch){
   if(isTouch && !DRAG.pending.onBox){
     // press and hold a name, then drag
     DRAG.timer = setTimeout(()=>{ if(DRAG.pending && !DRAG.mode){ const p = DRAG.pending; DRAG.pending = null; dsBegin(p.li); } }, 320);
+    // safety: never hold the screen for long if no touch-end arrives
+    setTimeout(()=>{ if(DRAG.pending && !DRAG.mode){ DRAG.pending = null; if(DRAG.pendingRender){ DRAG.pendingRender = false; render(); } } }, 4000);
   }
   return DRAG.pending.onBox;
 }
@@ -2427,12 +2545,14 @@ function dragPointerMove(x, y){
   if(p.onBox || (over && over!==p.li && p.mouse)){ DRAG.pending = null; clearTimeout(DRAG.timer); dsBegin(p.li); dsApply(over); return true; }
   // a normal swipe: let the page scroll
   DRAG.pending = null; clearTimeout(DRAG.timer);
+  if(DRAG.pendingRender){ DRAG.pendingRender = false; setTimeout(render, 0); }
   return false;
 }
 function dragPointerUp(){
   clearTimeout(DRAG.timer); DRAG.pending = null;
   if(DRAG.mode==='select') dsEnd();
   else if(DRAG.mode==='reorder') roEnd();
+  else if(DRAG.pendingRender){ DRAG.pendingRender = false; setTimeout(render, 0); }
 }
 document.addEventListener('touchstart', e=>{ if(e.touches.length!==1) return; const t = e.touches[0]; dragPointerDown(e.target, t.clientX, t.clientY, true); }, {passive:true});
 document.addEventListener('touchmove', e=>{ const t = e.touches[0]; if(!t) return; if(dragPointerMove(t.clientX, t.clientY) && e.cancelable) e.preventDefault(); }, {passive:false});
@@ -2690,7 +2810,7 @@ function startNewMatch(){
     format:S.format,
     selectedIds:(S.selectedIds||[]).filter(id=>findPlayer(id)),
     budget:S.budget, basePrice:S.basePrice, increment:S.increment, timerSecs:S.timerSecs,
-    poll:S.poll||null,
+    poll:S.poll||null, live:null,
     // anyone carried over from last time counts as "in" from now, so pulling out late is still noticed
     rsvpLog:(S.selectedIds||[]).filter(id=>findPlayer(id)).map(id=>({id, a:'in', t:new Date().toISOString(), by:'carry'}))
   }));
@@ -2707,6 +2827,7 @@ function releaseHost(){
   try{ localStorage.setItem('md_is_host', '0'); localStorage.removeItem('md_host_uid'); }catch(e){}
   if(db && AUTH_UID) db.doc('hostClaims/' + AUTH_UID).delete().catch(()=>{});
   hostClaimState = 'na';
+  setTimeout(reconnectAll, 400);
   render();
 }
 
@@ -2739,6 +2860,7 @@ async function syncHostClaim(){
       pendingHostCode = null;
       hostClaimState = 'ok';
       try{ localStorage.setItem('md_host_uid', AUTH_UID); }catch(e){}
+      reconnectAll();   // now allowed to see every game
     }catch(e){ hostClaimState = 'needed'; }
     render(); return;
   }
@@ -2759,6 +2881,7 @@ function confirmHostFromBanner(){
 }
 function onWriteError(e, path){
   if(!e || e.code !== 'permission-denied') return;
+  if(path && /^(logins|access)\//.test(String(path))) return;
   if(path && String(path).indexOf('/pollVotes/') >= 0){
     deniedToast = isHost()
       ? 'Poll answers can’t be saved yet: add the poll rule in Firebase (SETUP.md, Part 7).'
@@ -2855,6 +2978,8 @@ function currentPinStep(){
 function isLoggedIn(){
   if(pinLocked()) return false;
   if(getMyPlayerId()) return true;
+  // privacy rules: trust the login until the name index has answered, then require at least one game
+  if(db && squadsMode==='access' && getLoginName()) return accessIds===null || accessIds.length > 0;
   // on another game's list counts too (this game just shows view-only)
   return !!db && !!getLoginName() && (!allRostersLoaded || gamesForName(getLoginName()).length > 0);
 }
@@ -2863,19 +2988,40 @@ function doLoginAs(name, hash){
     localStorage.setItem('md_login_name', name);
     if(hash) localStorage.setItem('md_login_pin', hash); else localStorage.removeItem('md_login_pin');
   }catch(e){}
+  afterLogin();
 }
+const loginAccessChecked = {}, loginRetried = {};
 function submitLogin(){
   if(currentPinStep()){ submitPin(); return; }
   const typed = (loginDraft||'').trim();
   if(!typed){ loginError = 'Type your name first.'; render(); return; }
   let p = findPlayerByName(typed);
   if(!p && db){
-    if(!allRostersLoaded){ loginError = 'Checking…'; loginRetryPending = true; loadAllRosters(); render(); return; }
+    if(!allRostersLoaded && squadsMode==='list'){ loginError = 'Checking…'; loginRetryPending = true; loadAllRosters(); render(); return; }
     const games = gamesForName(typed);
     if(games.length){
       const real = namesInGame(games[0].id).find(x=>normName(x)===normName(typed));
       p = {name: real || typed};
       if(!pickedSquadId && games.length===1) switchSquad(games[0].id);
+    }else if(!loginAccessChecked[normName(typed)]){
+      // privacy rules: this phone can't see the player lists yet, so ask the name index
+      loginError = 'Checking…'; render();
+      db.doc('access/' + accessKey(typed)).get().then(snap=>{
+        const ids = (snap.exists && snap.data() && snap.data().squads) || [];
+        if(!ids.length && !loginRetried[normName(typed)]){
+          // just added by the host? their app publishes the list a moment later - look once more
+          loginRetried[normName(typed)] = true;
+          setTimeout(submitLogin, 1500); return;
+        }
+        loginAccessChecked[normName(typed)] = ids.length ? 'yes' : 'no';
+        if(ids.length && !pickedSquadId && ids.length===1){ pickedSquadId = ids[0]; try{ localStorage.setItem('md_squad', ids[0]); }catch(e){} }
+        submitLogin();
+      }).catch(()=>{ loginAccessChecked[normName(typed)] = 'no'; submitLogin(); });
+      return;
+    }else{
+      // use the index answer once; a "not found" is re-checked next time (the host may have just added them)
+      if(loginAccessChecked[normName(typed)]==='yes') p = {name: typed};
+      delete loginAccessChecked[normName(typed)]; delete loginRetried[normName(typed)];
     }
   }
   if(!p){ loginError = 'We couldn’t find “' + typed + '”. Check the spelling, or ask the host to add you.'; render(); return; }
@@ -2968,6 +3114,7 @@ function shouldOfferPin(){
 }
 function logout(){
   try{ localStorage.removeItem('md_login_name'); localStorage.removeItem('md_login_pin'); }catch(e){}
+  if(db && AUTH_UID && !isHost()) db.doc('logins/' + AUTH_UID).delete().catch(()=>{});
   pinStep = null; pinDraft = ''; pinError = '';
   loginDraft = ''; loginError = '';
   render();
@@ -3542,7 +3689,7 @@ function renderLogin(){
 }
 
 function render(){
-  if(DRAG.mode){ DRAG.pendingRender = true; return; }
+  if(DRAG.mode || DRAG.pending){ DRAG.pendingRender = true; return; }   // never swap the page out from under a finger
   syncSport();
   enforceMyGames();
   const app = document.getElementById('app');
@@ -3568,9 +3715,9 @@ function render(){
 
   const pg = currentPage();
   app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick()) && !friendBlockedHere()) ? renderProgress() : '') + renderBanner()
-    + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (friendBlockedHere() ? `<div class="waiting-note" style="margin:30px 0;">Opening your game…</div>` : (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (myPayCardHtml('home') + hostPaySummaryHtml() + renderPollCard() + renderBody()))))
+    + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (friendBlockedHere() ? `<div class="waiting-note" style="margin:30px 0;">Opening your game…</div>` : (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (liveCardHtml() + myPayCardHtml('home') + hostPaySummaryHtml() + renderPollCard() + renderBody()))))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
-    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
+    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -4683,6 +4830,9 @@ function renderComplete(){
 
 function renderResultForm(teamAIds, teamBIds){
   if(!isHost()) return '';
+  if(liveShown()) return '';
+  const hNow = HISTORY.find(x=>x.id===S.lastHistoryId);
+  const liveStart = (!resultDraft.saved && hNow && !hNow.winner) ? `<div class="panel"><div class="panel-title" style="font-size:1.1rem;">⏱ Live score</div><div class="panel-sub">Tap the score in as you play. Every phone sees it live, and the result saves itself at full time.</div><button class="btn btn-primary" onclick="startLive()">▶ Start live score</button></div>` : '';
   if(resultDraft.saved){
     return `<div class="panel"><div class="banner good">Match result saved — thanks for keeping the record straight!</div></div>`;
   }
@@ -4706,9 +4856,9 @@ function renderResultForm(teamAIds, teamBIds){
       <button class="icon-btn" onclick="removeAssistRow(${i})">✕</button>
     </div>`).join('');
 
-  return `
+  return liveStart + `
   <div class="panel">
-    <div class="panel-title" style="font-size:1.3rem;">Match result</div>
+    <div class="panel-title" style="font-size:1.3rem;">${liveStart ? 'Or enter the result afterwards' : 'Match result'}</div>
     <div class="panel-sub">Optional — fill in whatever you remember. Recording a winner nudges their rank up — more for a longer match, a bigger scoreline, or an upset; barely at all for a short kickabout or a favorite winning as expected — and starts building chemistry between regulars who keep winning together.</div>
     <div class="field" style="margin-bottom:10px;">
       <label>Winner</label>
@@ -6587,6 +6737,136 @@ function hostPaySummaryHtml(){
   return `<div class="poll-cta"><button class="btn" onclick="togglePayments()">💰 ${rupees(t)} to collect</button><span>${list.length} ${list.length===1?'person hasn’t':'people haven’t'} paid yet.</span></div>`;
 }
 
+/* ============================= Live score =============================
+   The host taps the score in as the match happens; every phone shows it live.
+   "Full time" saves the result (score, scorers, length) into the match record,
+   exactly like the result form. Lives in S.live = {hid, startedAt, endedAt,
+   status:'live'|'ended', events:[{id, team, pts, pid, ast, w}]}. */
+const LIVE_SPORT = {
+  football:   {btns:[{pts:1, label:'⚽ Goal'}], who:true, assist:true, clock:true},
+  basketball: {btns:[{pts:1, label:'+1'},{pts:2, label:'+2'},{pts:3, label:'+3'}], who:true, assist:false, clock:true},
+  cricket:    {btns:[{pts:1, label:'+1'},{pts:2, label:'+2'},{pts:4, label:'4'},{pts:6, label:'6'},{w:true, label:'Wkt'}], who:false, assist:false, clock:false},
+  pickleball: {btns:[{pts:1, label:'+1 point'}], who:false, assist:false, clock:false}
+};
+let liveAsk = null;   // {team, pts, stage:'who'|'assist', pid}
+function liveCfg(){ return LIVE_SPORT[SPORT.key] || LIVE_SPORT.football; }
+function liveOn(){ return !!(S.live && S.live.status==='live' && S.live.hid===S.lastHistoryId && S.phase==='complete'); }
+function liveShown(){ return !!(S.live && S.live.hid===S.lastHistoryId && S.phase==='complete'); }
+function liveTotals(L){
+  const t = {a:0, b:0, wa:0, wb:0};
+  (L.events||[]).forEach(e=>{ if(e.w) t['w'+e.team]++; else t[e.team] += (e.pts||0); });
+  return t;
+}
+function liveClockText(L){
+  const end = L.endedAt || Date.now(), sec = Math.max(0, Math.floor((end - L.startedAt)/1000));
+  return Math.floor(sec/60) + ':' + String(sec%60).padStart(2,'0');
+}
+function startLive(){
+  if(!isHost() || !S.lastHistoryId) return;
+  saveState({live: {hid: S.lastHistoryId, startedAt: Date.now(), endedAt: null, status: 'live', events: []}});
+}
+function liveTap(team, i){
+  if(!liveOn() || !isHost()) return;
+  const b = liveCfg().btns[i]; if(!b) return;
+  if(liveCfg().who && !b.w){ liveAsk = {team, pts: b.pts, stage: 'who'}; render(); return; }
+  liveAdd({team, pts: b.w ? 0 : b.pts, w: !!b.w, pid: null, ast: null});
+}
+function liveAskPick(pid){
+  if(!liveAsk) return;
+  if(liveAsk.stage==='who' && liveCfg().assist && pid){ liveAsk.pid = pid; liveAsk.stage = 'assist'; render(); return; }
+  if(liveAsk.stage==='assist') liveAdd({team: liveAsk.team, pts: liveAsk.pts, w:false, pid: liveAsk.pid, ast: pid || null});
+  else liveAdd({team: liveAsk.team, pts: liveAsk.pts, w:false, pid: pid || null, ast: null});
+  liveAsk = null; render();
+}
+function liveAdd(ev){
+  const L = JSON.parse(JSON.stringify(S.live));
+  ev.id = 'e' + Date.now().toString(36); ev.at = Date.now() - L.startedAt;
+  L.events = (L.events||[]).concat([ev]);
+  try{ if(navigator.vibrate) navigator.vibrate(15); }catch(e){}
+  saveState({live: L});
+}
+function liveUndo(){
+  if(!liveOn() || !isHost()) return;
+  const L = JSON.parse(JSON.stringify(S.live)); L.events = (L.events||[]).slice(0,-1); saveState({live: L});
+}
+let liveEndArm = false;
+function liveFullTime(){
+  if(!liveOn() || !isHost()) return;
+  if(!liveEndArm){ liveEndArm = true; render(); setTimeout(()=>{ liveEndArm = false; render(); }, 4000); return; }
+  liveEndArm = false;
+  const L = JSON.parse(JSON.stringify(S.live)), t = liveTotals(L);
+  const h = HISTORY.find(x=>x.id===L.hid);
+  const teamAIds = (h && h.teamAIds) || getCompleteTeamIds().teamAIds, teamBIds = (h && h.teamBIds) || getCompleteTeamIds().teamBIds;
+  const winner = t.a>t.b ? 'a' : t.b>t.a ? 'b' : 'draw';
+  const sum = {}, ast = {};
+  (L.events||[]).forEach(e=>{ if(e.pid && e.pts) sum[e.pid] = (sum[e.pid]||0) + e.pts; if(e.ast) ast[e.ast] = (ast[e.ast]||0) + 1; });
+  const scorers = Object.keys(sum).map(id=>({playerId:id, goals:sum[id]}));
+  const assists = Object.keys(ast).map(id=>({playerId:id, assists:ast[id]}));
+  const minutes = Math.max(1, Math.round((Date.now() - L.startedAt)/60000));
+  const duration = liveCfg().clock ? minutes : null;
+  const extra = SPORT.teamWickets ? {wktsA: t.wa, wktsB: t.wb} : {};
+  updateHistoryResult(L.hid, Object.assign({winner, scoreA: t.a, scoreB: t.b, scorers, assists, duration, live: true}, extra));
+  applyMatchOutcome(teamAIds, teamBIds, winner, scorers, t.a, t.b, duration, assists);
+  resultDraft.saved = true;
+  L.status = 'ended'; L.endedAt = Date.now();
+  saveState({live: L});
+}
+function liveEventText(e){
+  const min = Math.floor((e.at||0)/60000) + 1;
+  const time = liveCfg().clock ? min + '’ ' : '';
+  const team = 'Team ' + e.team.toUpperCase();
+  if(e.w) return time + '☝️ Wicket · ' + team;
+  if(SPORT.key==='football') return time + '⚽ ' + (e.pid ? esc(playerName(e.pid)) : team) + (e.ast ? ' <span style="color:var(--chalk-faint);">(assist ' + esc(playerName(e.ast)) + ')</span>' : '');
+  return time + '+' + e.pts + ' ' + (e.pid ? esc(playerName(e.pid)) + ' · ' : '') + team;
+}
+function liveCardHtml(){
+  if(!liveShown()) return '';
+  const L = S.live, t = liveTotals(L), on = L.status==='live';
+  const sc = side=> String(t[side]) + (SPORT.teamWickets ? '/' + t['w'+side] : '');
+  const evs = (L.events||[]).slice(-6).reverse();
+  const cfg = liveCfg();
+  const btnRow = team=> `<div class="live-btns">${cfg.btns.map((b,i)=>`<button class="btn ${b.w ? 'btn-danger' : 'btn-primary'} live-btn" onclick="liveTap('${team}', ${i})">${b.label}</button>`).join('')}</div>`;
+  return `
+  <div class="panel live-card ${on?'on':''}" id="liveCard">
+    <div class="live-head">${on ? `<span class="live-dot"></span> LIVE${cfg.clock ? ` · <span id="liveClock">${liveClockText(L)}</span>` : ''}` : `🏁 FULL TIME${cfg.clock ? ' · ' + liveClockText(L) : ''}`}</div>
+    <div class="live-score">
+      <div class="lt a">Team A</div>
+      <div class="ln"><span>${sc('a')}</span><i>:</i><span>${sc('b')}</span></div>
+      <div class="lt b">Team B</div>
+    </div>
+    ${evs.length ? `<div class="live-feed">${evs.map(e=>`<div>${liveEventText(e)}</div>`).join('')}</div>` : (on ? `<div class="live-feed" style="text-align:center;">Kick-off! Scores appear here as they happen.</div>` : '')}
+    ${isHost() && on ? `
+      <div class="live-grid">
+        <div><div class="lt a" style="margin-bottom:6px;">Team A</div>${btnRow('a')}</div>
+        <div><div class="lt b" style="margin-bottom:6px;">Team B</div>${btnRow('b')}</div>
+      </div>
+      <div class="poll-actions">
+        <button class="btn btn-sm" onclick="liveUndo()" ${(L.events||[]).length ? '' : 'disabled'}>↩ Undo last</button>
+        <button class="btn btn-sm ${liveEndArm ? 'btn-danger' : 'btn-primary'}" onclick="liveFullTime()">${liveEndArm ? 'Tap again to save the result' : '🏁 Full time'}</button>
+      </div>
+      <div class="poll-list">Full time saves the score${cfg.who ? ', the ' + SPORT.s1.many + (cfg.assist ? ' and assists' : '') : ''}${cfg.clock ? ' and the match length' : ''} as the result. You can still add or fix details in 📜 Past matches.</div>` : ''}
+  </div>`;
+}
+function renderLiveAsk(){
+  if(!liveAsk || !liveOn()) { liveAsk = null; return ''; }
+  const h = HISTORY.find(x=>x.id===S.live.hid);
+  const ids = h ? (liveAsk.team==='a' ? h.teamAIds : h.teamBIds) || [] : (getCompleteTeamIds()[liveAsk.team==='a' ? 'teamAIds' : 'teamBIds'] || []);
+  const pool = liveAsk.stage==='assist' ? ids.filter(id=>id!==liveAsk.pid) : ids;
+  const title = liveAsk.stage==='assist' ? 'Assist?' : (SPORT.key==='football' ? 'Who scored?' : 'Who scored the ' + liveAsk.pts + '?');
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this){ liveAsk=null; render(); }">
+    <div class="modal" style="max-width:420px;">
+      <div class="panel-title" style="margin:0 0 4px;">${title} <span style="color:var(--team${liveAsk.team.toUpperCase()});">· Team ${liveAsk.team.toUpperCase()}</span></div>
+      <div class="live-pick">${pool.map(id=>`<button class="btn" onclick="liveAskPick('${id}')">${esc(playerName(id))}</button>`).join('')}</div>
+      <div class="footer-actions" style="justify-content:flex-start; margin-top:12px;">
+        <button class="btn btn-ghost" onclick="liveAskPick(null)">${liveAsk.stage==='assist' ? 'No assist' : 'Skip (don’t know)'}</button>
+        <button class="btn btn-ghost" onclick="liveAsk=null; render();">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+setInterval(()=>{ const c = document.getElementById('liveClock'); if(c && liveOn()) c.textContent = liveClockText(S.live); }, 1000);
+
 /* ============================= "Who's in?" polls =============================
    The host makes a poll here and shares it to the WhatsApp group; friends tap the
    link and answer in the app. The app knows the whole roster, so it can list exactly
@@ -6661,13 +6941,35 @@ function applyPendingVote(){
 }
 // api.whatsapp.com keeps emoji intact (the short wa.me address can turn them into "�")
 function openWhatsApp(text){ window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
+function isoDay(dt){ return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0'); }
+function slotLabel(dt, part){ return dt.toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'}) + ' · ' + part; }
+// The same weekday as last time, on or after today, and always later than last time's date.
+function nextSameWeekday(isoD){
+  const [y,m,dd] = isoD.split('-').map(Number), old = new Date(y, m-1, dd), now = new Date();
+  const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  while(dt.getDay() !== old.getDay()) dt.setDate(dt.getDate()+1);
+  while(dt <= old) dt.setDate(dt.getDate()+7);
+  return dt;
+}
+function repeatPollPlan(){
+  const lp = SQUAD.lastPoll;
+  if(!lp || !Array.isArray(lp.opts) || !lp.opts.length) return null;
+  return {q: lp.q || pollDefaultQ(), opts: lp.opts.map(o=> (o && o.d && o.part) ? {label: slotLabel(nextSameWeekday(o.d), o.part), d: isoDay(nextSameWeekday(o.d)), part: o.part} : {label: (o && o.label) || ''}).filter(o=>o.label)};
+}
+function repeatLastPoll(){
+  if(!isHost()) return;
+  const plan = repeatPollPlan(); if(!plan) return;
+  pollDraft = {q: plan.q, opts: plan.opts.map(o=>o.label), custom:'', meta: {}};
+  plan.opts.forEach(o=>{ if(o.d) pollDraft.meta[o.label] = {d:o.d, part:o.part}; });
+  createPoll(true);
+}
 function pollPresetSlots(){
   const out = [], now = new Date();
   for(let d=0; d<5; d++){
     const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate()+d);
     const day = dt.toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'});
     const rel = d===0 ? 'Today' : d===1 ? 'Tomorrow' : dt.toLocaleDateString(undefined, {weekday:'long'});
-    ['Morning','Evening'].forEach(part=> out.push({label: day + ' · ' + part, short: rel + ' ' + part.toLowerCase()}));
+    ['Morning','Evening'].forEach(part=> out.push({label: slotLabel(dt, part), short: rel + ' ' + part.toLowerCase(), d: isoDay(dt), part}));
   }
   return out;
 }
@@ -6681,7 +6983,7 @@ function togglePollDraftOpt(label){
   pollFormErr = ''; render();
 }
 let POLL_PRESETS = [];
-function togglePollPreset(i){ const x = POLL_PRESETS[i]; if(x) togglePollDraftOpt(x.label); }
+function togglePollPreset(i){ const x = POLL_PRESETS[i]; if(!x) return; pollDraft.meta = pollDraft.meta || {}; pollDraft.meta[x.label] = {d:x.d, part:x.part}; togglePollDraftOpt(x.label); }
 function removePollDraftOpt(i){ pollDraft.opts.splice(i,1); render(); }
 function addPollDraftCustom(){
   const l = (pollDraft.custom||'').trim().slice(0,60);
@@ -6710,7 +7012,7 @@ function createPoll(share){
   const poll = {
     id: 'p' + Date.now().toString(36),
     q: (pollDraft.q||'').trim().slice(0,80) || pollDefaultQ(),
-    opts: pollDraft.opts.map((label,i)=>({id:'o'+(i+1), label})),
+    opts: pollDraft.opts.map((label,i)=>Object.assign({id:'o'+(i+1), label}, ((pollDraft.meta||{})[label]) || {})),
     status: 'open', decided: null, createdAt: new Date().toISOString(), decidedAt: null
   };
   const patch = {poll};
@@ -6722,6 +7024,8 @@ function createPoll(share){
   }
   const old = S.poll;
   saveState(patch);
+  // remember it, so next week is one tap
+  saveSquadDoc(Object.assign({}, SQUAD, {lastPoll: {q: poll.q, opts: poll.opts.map(o=> o.d ? {label:o.label, d:o.d, part:o.part} : {label:o.label})}}));
   // tidy away the previous poll's answers
   if(old && db) POLLVOTES.filter(v=>v.pollId===old.id).forEach(v=>db.doc(squadPath('pollVotes/'+v.id)).delete().catch(()=>{}));
   if(old && !db){ POLLVOTES = POLLVOTES.filter(v=>v.pollId!==old.id); }
@@ -6826,7 +7130,7 @@ function renderPollCard(){
   if(!pollVisible()){
     return (isHost() && (S.phase==='setup' || S.phase==='complete')) ? `<div class="poll-cta">
       <button class="btn btn-primary" onclick="openPollForm()">📊 Ask who’s in</button>
-      <span>Make a poll, send it to the WhatsApp group, and answers come back here.</span></div>` : '';
+      ${repeatPollPlan() ? `<button class="btn" onclick="repeatLastPoll()">🔁 Same as last week</button><span>${esc(repeatPollPlan().opts.map(o=>o.label).join(' / '))}</span>` : `<span>Make a poll, send it to the WhatsApp group, and answers come back here.</span>`}</div>` : '';
   }
   const m = pollVotesMap(), me = getMyPlayerId(), mine = me ? m[me] : null;
   const elig = pollEligible();
@@ -7407,7 +7711,7 @@ function checkTurnAlert(){
     lastTurnKey = null;
     stopTitleFlash();
   }
-  syncWakeLock(!!myTeamRole() && S.phase==='auction' && !!S.auction && !S.auction.done);
+  syncWakeLock((!!myTeamRole() && S.phase==='auction' && !!S.auction && !S.auction.done) || (isHost() && liveOn()));
 }
 function renderTurnBanner(){
   const i = myTurnInfo();
