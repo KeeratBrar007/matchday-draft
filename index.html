@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="5067e8b274">
+<meta name="md-build" content="a6f76b8f34">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -635,6 +635,10 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .pm-row:last-child{border-bottom:0;}
   .poll-card{border-color:var(--amber);}
   .pay-card{border-color:var(--good);}
+  .bid-more{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+  .bid-custom{display:flex; align-items:center; gap:6px; margin-top:8px;}
+  .bid-custom input{min-width:0; flex:1; max-width:150px;}
+  .bid-hint{font-size:.75rem; color:var(--chalk-faint); margin-top:4px;}
   .pay-amt{font-family:'Space Mono',monospace; font-weight:700;}
   .pay-row{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); flex-wrap:wrap;}
   .pay-row:last-child{border-bottom:0;}
@@ -2374,20 +2378,28 @@ function nextPlayerSetup(auction, basePrice){
   return auction;
 }
 
-function auctionBid(team){
+// A captain can bid the minimum (currentBid) or any higher amount up to
+// their remaining budget. The other side then has to beat it by at least
+// one increment.
+let bidDrafts = {a:'', b:''}, bidErr = {a:'', b:''};
+function auctionBid(team, amount){
   const a = JSON.parse(JSON.stringify(S.auction));
   if(a.done || a.turn!==team) return;
-  a.note = null;
   const teamObj = team==='a' ? a.teamA : a.teamB;
-  if(teamObj.budget < a.currentBid) return;
+  const min = a.currentBid;
+  let price = (amount==null || amount==='') ? min : Math.round(Number(amount));
+  if(!isFinite(price) || price < min){ bidErr[team] = 'The lowest bid now is ₹' + min + '.'; render(); return; }
+  if(price > teamObj.budget){ bidErr[team] = 'You only have ₹' + teamObj.budget + ' left.'; render(); return; }
+  bidErr[team] = ''; bidDrafts[team] = '';
+  a.note = price > min ? 'Team ' + team.toUpperCase() + ' jumped to ₹' + price + '.' : null;
   a.leader = team;
   a.passesInARow = 0;
   a.turn = team==='a' ? 'b' : 'a';
-  // price for the *next* raise
-  a.pendingLeaderPrice = a.currentBid;
-  a.currentBid = a.currentBid + S.increment;
+  a.pendingLeaderPrice = price;              // what they pay if nobody beats it
+  a.currentBid = price + S.increment;        // what the other side must bid next
   saveState({auction:a});
 }
+function bidFromInput(team){ auctionBid(team, bidDrafts[team]); }
 
 function auctionPass(team, auto){
   const a = JSON.parse(JSON.stringify(S.auction));
@@ -3348,7 +3360,7 @@ function render(){
   const modalScrollTop = openModal ? openModal.scrollTop : null;
   // keep the cursor in a login box if a live update re-renders mid-typing
   const ae = document.activeElement;
-  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput' || ae.id==='pinInput' || ae.id==='pinSetInput' || ae.id==='hostConfirmInput' || ae.id==='pollQInput' || ae.id==='pollCustomInput' || ae.id==='newGameName' || ae.id==='payUpiInput' || ae.id==='payNameInput')) ? ae.id : null;
+  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput' || ae.id==='pinInput' || ae.id==='pinSetInput' || ae.id==='hostConfirmInput' || ae.id==='pollQInput' || ae.id==='pollCustomInput' || ae.id==='newGameName' || ae.id==='payUpiInput' || ae.id==='payNameInput' || ae.id==='bidInput_a' || ae.id==='bidInput_b')) ? ae.id : null;
   const keepPos = keepId ? ae.selectionStart : null;
 
   if(!(dbReady && rosterLoaded && (pinsLoaded || !db))){ app.innerHTML = renderLoading(); return; }
@@ -4318,11 +4330,24 @@ function renderAuctionActions(){
     if(!canAct){
       return `<div class="waiting-note">It's Team ${team.toUpperCase()}'s turn — waiting on their phone…</div>`;
     }
+    const min = a.currentBid, inc = S.increment || 5;
+    const quick = [min + inc, min + 3*inc, min + 5*inc].filter(v=>v <= teamObj.budget);
     return `
       <div class="bid-actions">
-        <button class="btn btn-primary" ${canAfford?'':'disabled'} onclick="auctionBid('${team}')">Bid ₹${a.currentBid}</button>
+        <button class="btn btn-primary" ${canAfford?'':'disabled'} onclick="auctionBid('${team}')">Bid ₹${min}</button>
         <button class="btn btn-danger" onclick="auctionPass('${team}')">Pass</button>
-      </div>`;
+      </div>
+      ${canAfford ? `
+      <div class="bid-more">
+        ${quick.map(v=>`<button class="btn btn-sm" onclick="auctionBid('${team}', ${v})">₹${v}</button>`).join('')}
+      </div>
+      <div class="bid-custom">
+        <span>₹</span>
+        <input type="number" class="field-input" id="bidInput_${team}" inputmode="numeric" min="${min}" max="${teamObj.budget}" step="1" placeholder="Your amount" value="${escAttr(bidDrafts[team])}" oninput="bidDrafts['${team}']=this.value" onkeydown="if(event.key==='Enter') bidFromInput('${team}');">
+        <button class="btn btn-sm btn-primary" onclick="bidFromInput('${team}')">Bid</button>
+      </div>
+      <div class="bid-hint">Any amount from ₹${min} to ₹${teamObj.budget} (your budget).</div>
+      ${bidErr[team] ? `<div class="login-err">${esc(bidErr[team])}</div>` : ''}` : `<div class="bid-hint">Not enough budget left to bid on this one.</div>`}`;
   }
 
   const canRandomize = isHost() || myTeam==='a' || myTeam==='b';
@@ -4362,15 +4387,15 @@ function renderAuction(){
           <div class="tag">On the block</div>
           <div class="name">${esc(playerName(currentId))} ${posBadges(currentId)}${starBadge(currentId)}${chemBadge(currentId)}</div>
           ${attrChips(currentId)}
-          <div class="price">₹${a.currentBid}</div>
-          <div class="leader">${a.leader ? 'Leading: Team '+a.leader.toUpperCase()+' at ₹'+a.pendingLeaderPrice : 'No bids yet'}</div>
+          <div class="price">₹${a.leader ? a.pendingLeaderPrice : a.currentBid}</div>
+          <div class="leader">${a.leader ? 'Team '+a.leader.toUpperCase()+' leads · next bid ₹'+a.currentBid+'+' : 'No bids yet · opening bid'}</div>
           ${timerHtml(a)}
         ` : `<div class="tag">Auction complete</div><div class="name">🏁</div>`}
       </div>
       ${capCardHtml('b')}
     </div>
     ${renderAuctionActions()}
-    ${a.note && !a.done ? `<div class="banner amber" style="margin-top:10px;">⏱ ${esc(a.note)}</div>` : ''}
+    ${a.note && !a.done ? `<div class="banner amber" style="margin-top:10px;">${/jumped/.test(a.note) ? '📣' : '⏱'} ${esc(a.note)}</div>` : ''}
     ${(isHost() && !a.done) ? `<div class="row" style="gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;">
       <span class="panel-sub" style="margin:0;">⏱ Time per decision</span>
       <select class="field-input" style="width:auto;" onchange="setTimerSecs(Number(this.value))">
@@ -7096,7 +7121,7 @@ function myTurnInfo(){
 function notifyTurn(info){
   try{
     if(!document.hidden || !('Notification' in window) || Notification.permission!=='granted') return;
-    const body = (info.player ? info.player + ' is on the block — ' : '') + 'bid ₹' + info.bid + ' or pass.';
+    const body = (info.player ? info.player + ' is on the block — ' : '') + 'bid ₹' + info.bid + ' or more, or pass.';
     const opts = {body, tag:'md-turn', renotify:true, icon:'icon-192.png', vibrate:[200,100,200]};
     if(navigator.serviceWorker && navigator.serviceWorker.getRegistration){
       navigator.serviceWorker.getRegistration().then(reg=>{
@@ -7159,7 +7184,7 @@ function checkTurnAlert(){
 function renderTurnBanner(){
   const i = myTurnInfo();
   if(!i) return '';
-  return `<div class="turn-banner" role="alert"><span class="tb-dot"></span><span><b>Your turn!</b> ${i.player ? esc(i.player)+' is on the block — ' : ''}bid ₹${i.bid} or pass.</span>${S.timerSecs ? `<span class="tb-timer" id="tbTimer">⏱ ${Math.ceil(timerLeft())}s</span>` : ''}</div>`;
+  return `<div class="turn-banner" role="alert"><span class="tb-dot"></span><span><b>Your turn!</b> ${i.player ? esc(i.player)+' is on the block — ' : ''}bid ₹${i.bid} or more, or pass.</span>${S.timerSecs ? `<span class="tb-timer" id="tbTimer">⏱ ${Math.ceil(timerLeft())}s</span>` : ''}</div>`;
 }
 function toggleAlerts(){
   alertsOn = !alertsOn;
