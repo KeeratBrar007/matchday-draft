@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="32ffdcff74">
+<meta name="md-build" content="22fddc0c0b">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -1452,6 +1452,7 @@ function localCommit(){
 // straight from the server and only re-renders if something really changed.
 let lastResync = 0;
 function resyncNow(force){
+  if(db && squadsLoaded && !isHost()) loadAllRosters();
   if(!db || !currentSquadId || !dbReady) return;
   if(typeof document!=='undefined' && document.visibilityState==='hidden') return;
   const now = Date.now();
@@ -1552,14 +1553,34 @@ function loadAllRosters(){
       const d = snap.exists ? snap.data() : {};
       out[sq.id] = (d.players||[]).concat(d.unrankedPlayers||[]).map(p=>p && p.name).filter(Boolean);
     }).catch(()=>{ out[sq.id] = []; })));
+    const changed = !allRostersLoaded || JSON.stringify(out) !== JSON.stringify(allRosters);
     allRosters = out; allRostersLoaded = true;
     if(loginRetryPending){ loginRetryPending = false; submitLogin(); return; }
-    render();
+    if(changed) render();
   }, 150);
 }
 function namesInGame(id){
-  if(id===currentSquadId) return rosterPlayersArr().map(p=>p.name);
+  if(id===currentSquadId && rosterLoaded) return rosterPlayersArr().map(p=>p.name);
   return allRosters[id] || [];
+}
+// Friends only ever see the games they're on; the host sees every game.
+function myGames(){
+  if(isHost()) return squadsList;
+  const n = getLoginName();
+  return n ? gamesForName(n) : [];
+}
+// A friend looking at a game they're not on gets moved to one of theirs.
+let movingGame = false;
+function friendBlockedHere(){
+  return !isHost() && !!db && !!getLoginName() && rosterLoaded && !getMyPlayerId();
+}
+function enforceMyGames(){
+  if(movingGame || !friendBlockedHere() || !allRostersLoaded) return;
+  const games = myGames();
+  if(games.length===1 && games[0].id!==currentSquadId){
+    movingGame = true;
+    setTimeout(()=>{ movingGame = false; switchSquad(games[0].id); }, 0);
+  }
 }
 function gamesForName(name){
   const n = normName(name);
@@ -1567,20 +1588,25 @@ function gamesForName(name){
   return squadsList.filter(sq=> namesInGame(sq.id).some(x=>normName(x)===n));
 }
 function needsGamePick(){
-  return !!db && squadsLoaded && squadsList.length>1 && !pickedSquadId;
+  if(!db || !squadsLoaded) return false;
+  if(isHost()) return squadsList.length>1 && !pickedSquadId;
+  if(!allRostersLoaded) return false;
+  const games = myGames();
+  if(games.length<=1) return false;
+  return !(pickedSquadId && games.some(g=>g.id===pickedSquadId)) || friendBlockedHere();
 }
-function openGamePicker(){ gamePickerOpen = true; newGameDraft = null; render(); window.scrollTo(0,0); }
+function openGamePicker(){ gamePickerOpen = true; newGameDraft = null; loadAllRosters(); render(); window.scrollTo(0,0); }
 function closeGamePicker(){ gamePickerOpen = false; newGameDraft = null; render(); }
 function openNewGame(){ if(!isHost()) return; newGameDraft = {sport:'cricket', name:''}; render(); }
 function renderGamePicker(){
   const me = getLoginName();
   const order = ['football','cricket','basketball'];
-  const list = squadsList.slice().sort((a,b)=> order.indexOf(sportOfSquad(a.id)) - order.indexOf(sportOfSquad(b.id)) || String(a.createdAt).localeCompare(String(b.createdAt)));
+  const list = myGames().slice().sort((a,b)=> order.indexOf(sportOfSquad(a.id)) - order.indexOf(sportOfSquad(b.id)) || String(a.createdAt).localeCompare(String(b.createdAt)));
   const card = sq=>{
     const sp = SPORTS[sportOfSquad(sq.id)];
     const on = me && namesInGame(sq.id).some(x=>normName(x)===normName(me));
     const n = namesInGame(sq.id).length;
-    const sub = isHost() ? (n + ' player' + (n===1?'':'s')) : (on ? 'You’re on this list ✓' : (allRostersLoaded ? 'Not on this list yet' : ''));
+    const sub = isHost() ? (n + ' player' + (n===1?'':'s')) : (on ? 'You’re playing ✓' : '');
     return `<button type="button" class="game-card ${sp.key} ${sq.id===currentSquadId && !needsGamePick() ? 'current' : ''}" onclick="switchSquad('${sq.id}')">
       ${sq.id===currentSquadId && !needsGamePick() ? '<span class="gt">Now</span>' : ''}
       <div class="gi">${sp.icon}</div>
@@ -1601,7 +1627,7 @@ function renderGamePicker(){
   return `
   <div class="page-head">
     <h2>${needsGamePick() ? 'Pick a game' : 'Games'}</h2>
-    <p>Each game has its own players, matches, polls and leaderboard. You can switch any time with the game button at the top.</p>
+    <p>${isHost() ? 'Each game has its own players, matches, polls and leaderboard. Friends only see the games they’ve been added to.' : 'These are the games you’ve been added to. You can switch any time with the game button at the top.'}</p>
   </div>
   <div class="game-grid">
     ${list.map(card).join('')}
@@ -3290,6 +3316,7 @@ function renderLogin(){
 
 function render(){
   syncSport();
+  enforceMyGames();
   const app = document.getElementById('app');
   document.body.classList.toggle('is-host', isHost());
   const pageScrollY = window.scrollY;
@@ -3312,8 +3339,8 @@ function render(){
   if(shouldOfferPin() && pinOfferedFor !== pinKey(getLoginName())){ pinOfferedFor = pinKey(getLoginName()); pinModalOpen = true; }
 
   const pg = currentPage();
-  app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick())) ? renderProgress() : '') + renderBanner()
-    + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (notOnListBannerHtml() + (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (renderPollCard() + renderBody()))))
+  app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick()) && !friendBlockedHere()) ? renderProgress() : '') + renderBanner()
+    + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (friendBlockedHere() ? `<div class="waiting-note" style="margin:30px 0;">Opening your game…</div>` : (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (renderPollCard() + renderBody()))))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
     + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
@@ -3372,7 +3399,7 @@ function renderTopbar(){
       </div>
     </div>
     <div class="row" style="gap:8px;">
-      ${(isHost() || squadsList.length>1) ? `<button type="button" class="game-chip" title="Switch game" onclick="openGamePicker()">${SPORT.icon} ${esc(isHost() ? currentSquadName() : SPORT.name)} ▾</button>` : ''}
+      ${(isHost() || myGames().length>1) ? `<button type="button" class="game-chip" title="Switch game" onclick="openGamePicker()">${SPORT.icon} ${esc(isHost() ? currentSquadName() : SPORT.name)} ▾</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleSquadManager()">⚙</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleDatabase()">🗂 Database</button>` : ''}
       ${isHost() ? `<button class="btn btn-ghost btn-sm" onclick="toggleLogMatch()">📝 Log match</button>` : ''}
