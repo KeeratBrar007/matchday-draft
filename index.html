@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="8bf6b4f453">
+<meta name="md-build" content="caafc261f0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -385,6 +385,14 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
     font-size:.7rem; color:var(--sel-ink); font-weight:700;
   }
   .select-row.selected .check-box{border-color:var(--sel-line); background:var(--sel-line);}
+  body.is-host .select-row .check-box{touch-action:none; width:24px; height:24px; font-size:.85rem;}
+  body.drag-selecting, body.drag-selecting *{user-select:none; -webkit-user-select:none;}
+  body.drag-selecting .select-row{cursor:ns-resize;}
+  .sel-tools{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-2px 0 10px;}
+  .sel-tools span{font-size:.75rem; color:var(--chalk-faint); flex:1 1 180px;}
+  .drag-handle{touch-action:none; cursor:grab; font-size:1.2rem; line-height:1; color:var(--chalk-faint); padding:6px 4px; margin:-6px 0; user-select:none; -webkit-user-select:none;}
+  li.dragging{opacity:.85; box-shadow:0 8px 24px rgba(0,0,0,.18); position:relative; z-index:2; background:var(--panel);}
+  li.dragging .drag-handle{cursor:grabbing; color:var(--amber);}
 
   .empty-note{
     color:var(--chalk-faint);
@@ -1185,7 +1193,7 @@ SPORTS.pickleball = {
   key:'pickleball', name:'Pickleball', icon:'🏓', play:'pickleball', field:'court', kickoff:'Ready to serve',
   pos:{GK:['–','—'], DEF:['NET','Net player'], MID:['ALL','All-court'], FWD:['PWR','Power hitter']},
   posOrder:['MID','DEF','FWD'], keeper:false, keeperWord:'',
-  attrs:[['serve','Serve'],['return','Return'],['dinking','Dinking'],['drives','Drives'],['volleys','Hands at the net'],['footwork','Footwork'],['game_iq','Strategy']],
+  attrs:[['serve','Serve'],['return','Return'],['dinking','Dinking'],['drives','Drives'],['volleys','Volleys'],['smash','Smasher'],['placement','Shot picker'],['spin','Master spinner'],['footwork','Footwork'],['game_iq','Strategy']],
   formats:[1,2], defFormat:2,
   s1:{name:'Aces', one:'ace', many:'aces', icon:'🎯', col:'🎯', award:'Ace machine', awardIcon:'🎯'},
   s2:{name:'Winners', one:'winner', many:'winners', icon:'💥', col:'💥', award:'Shot maker', awardIcon:'💥'},
@@ -2308,6 +2316,134 @@ function confirmEvenTeams(){ saveState({extraConfirmedEven:true}); }
 function confirmExtraPlayer(){ saveState({oddSide: Math.random()<0.5 ? 'a' : 'b'}); }
 function bumpFormatForExtra(){ setFormat(S.format+1); }
 
+/* ---- quick selection: select all / clear, and drag across rows ---- */
+function selectAllVisible(on){
+  if(!isHost()) return;
+  const rows = [...document.querySelectorAll('li.select-row[data-pid]:not(.locked)')].map(li=>li.dataset.pid);
+  commitSelection(rows, on);
+}
+function commitSelection(ids, on){
+  const sel = new Set(S.selectedIds||[]), t = new Date().toISOString(), log = [];
+  ids.forEach(pid=>{
+    const was = sel.has(pid);
+    if(on && !was){ sel.add(pid); log.push({id:pid, a:'in', t, by:'host'}); }
+    if(!on && was){ sel.delete(pid); log.push({id:pid, a:'out', t, by:'host'}); }
+  });
+  if(log.length) saveState({selectedIds: [...sel], rsvpLog: (S.rsvpLog||[]).concat(log).slice(-300)});
+}
+const DRAG = {mode:null, pending:null, timer:null, x:0, y:0, raf:null, suppressClick:false, pendingRender:false};
+function dragRowAt(x, y, sel){ const el = document.elementFromPoint(x, y); return el ? el.closest(sel) : null; }
+function dsBegin(li){
+  DRAG.mode = 'select'; DRAG.target = !li.classList.contains('selected'); DRAG.changed = new Set();
+  document.body.classList.add('drag-selecting');
+  try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){}
+  dsApply(li); dragAutoScroll();
+}
+function dsApply(li){
+  if(!li || li.classList.contains('locked') || !li.dataset.pid) return;
+  if(li.classList.contains('selected') !== DRAG.target){
+    li.classList.toggle('selected', DRAG.target);
+    const cb = li.querySelector('.check-box'); if(cb) cb.textContent = DRAG.target ? '✓' : '';
+  }
+  DRAG.changed.add(li.dataset.pid);
+}
+function dsEnd(){
+  document.body.classList.remove('drag-selecting');
+  const ids = [...DRAG.changed], on = DRAG.target;
+  DRAG.mode = null; DRAG.suppressClick = true; setTimeout(()=>{ DRAG.suppressClick = false; }, 400);
+  commitSelection(ids, on);
+  if(DRAG.pendingRender){ DRAG.pendingRender = false; render(); }
+}
+function roBegin(li){
+  DRAG.mode = 'reorder'; DRAG.li = li; DRAG.list = li.parentElement;
+  DRAG.startOrder = [...DRAG.list.querySelectorAll('li[data-rank-id]')].map(x=>x.dataset.rankId);
+  li.classList.add('dragging');
+  document.body.classList.add('drag-selecting');
+  try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){}
+  dragAutoScroll();
+}
+function roMove(){
+  const over = dragRowAt(DRAG.x, DRAG.y, 'li[data-rank-id]');
+  if(!over || over===DRAG.li || over.parentElement!==DRAG.list) return;
+  const r = over.getBoundingClientRect();
+  if(DRAG.y < r.top + r.height/2) DRAG.list.insertBefore(DRAG.li, over);
+  else DRAG.list.insertBefore(DRAG.li, over.nextSibling);
+}
+function roEnd(){
+  const li = DRAG.li; li.classList.remove('dragging'); document.body.classList.remove('drag-selecting');
+  const order = [...DRAG.list.querySelectorAll('li[data-rank-id]')].map(x=>x.dataset.rankId);
+  DRAG.mode = null; DRAG.suppressClick = true; setTimeout(()=>{ DRAG.suppressClick = false; }, 400);
+  if(order.join('|') !== DRAG.startOrder.join('|')) movePlayersToOrder(order);
+  if(DRAG.pendingRender){ DRAG.pendingRender = false; }
+  render();
+}
+function movePlayersToOrder(order){
+  if(!isHost()) return;
+  const next = cloneSquad();
+  const byId = {}; next.players.forEach(p=>{ byId[p.id] = p; });
+  const moved = order.map(id=>byId[id]).filter(Boolean);
+  const rest = next.players.filter(p=>!order.includes(p.id));
+  next.players = moved.concat(rest);
+  syncRankBaseline(next);
+  saveSquadDoc(next);
+}
+function dragAutoScroll(){
+  cancelAnimationFrame(DRAG.raf);
+  const step = ()=>{
+    if(!DRAG.mode) return;
+    const box = DRAG.mode==='reorder' ? (DRAG.li.closest('.modal-backdrop') || null) : null;
+    const edge = 70, h = window.innerHeight;
+    const dy = DRAG.y < edge ? -12 : (DRAG.y > h - edge ? 12 : 0);
+    if(dy){ if(box) box.scrollTop += dy; else window.scrollBy(0, dy); }
+    if(DRAG.mode==='select') dsApply(dragRowAt(DRAG.x, DRAG.y, 'li.select-row[data-pid]'));
+    else if(DRAG.mode==='reorder') roMove();
+    DRAG.raf = requestAnimationFrame(step);
+  };
+  DRAG.raf = requestAnimationFrame(step);
+}
+function dragPointerDown(target, x, y, isTouch){
+  if(!isHost()) return false;
+  const handle = target.closest && target.closest('.drag-handle');
+  if(handle){ const li = handle.closest('li[data-rank-id]'); if(li){ DRAG.x = x; DRAG.y = y; roBegin(li); return true; } }
+  const li = target.closest && target.closest('li.select-row[data-pid]');
+  if(!li || li.classList.contains('locked') || target.closest('button, input, .edit-panel')) return false;
+  DRAG.pending = {li, x, y, onBox: !!target.closest('.check-box')};
+  DRAG.x = x; DRAG.y = y;
+  clearTimeout(DRAG.timer);
+  if(isTouch && !DRAG.pending.onBox){
+    // press and hold a name, then drag
+    DRAG.timer = setTimeout(()=>{ if(DRAG.pending && !DRAG.mode){ const p = DRAG.pending; DRAG.pending = null; dsBegin(p.li); } }, 320);
+  }
+  return DRAG.pending.onBox;
+}
+function dragPointerMove(x, y){
+  DRAG.x = x; DRAG.y = y;
+  if(DRAG.mode) return true;
+  const p = DRAG.pending; if(!p) return false;
+  const moved = Math.abs(x - p.x) + Math.abs(y - p.y) > 8;
+  if(!moved) return false;
+  const over = dragRowAt(x, y, 'li.select-row[data-pid]');
+  if(p.mouse && !p.onBox && (!over || over===p.li)) return false;   // still on the first row: keep waiting
+  if(p.onBox || (over && over!==p.li && p.mouse)){ DRAG.pending = null; clearTimeout(DRAG.timer); dsBegin(p.li); dsApply(over); return true; }
+  // a normal swipe: let the page scroll
+  DRAG.pending = null; clearTimeout(DRAG.timer);
+  return false;
+}
+function dragPointerUp(){
+  clearTimeout(DRAG.timer); DRAG.pending = null;
+  if(DRAG.mode==='select') dsEnd();
+  else if(DRAG.mode==='reorder') roEnd();
+}
+document.addEventListener('touchstart', e=>{ if(e.touches.length!==1) return; const t = e.touches[0]; dragPointerDown(e.target, t.clientX, t.clientY, true); }, {passive:true});
+document.addEventListener('touchmove', e=>{ const t = e.touches[0]; if(!t) return; if(dragPointerMove(t.clientX, t.clientY) && e.cancelable) e.preventDefault(); }, {passive:false});
+document.addEventListener('touchend', ()=>dragPointerUp(), {passive:true});
+document.addEventListener('touchcancel', ()=>dragPointerUp(), {passive:true});
+document.addEventListener('mousedown', e=>{ if(e.button!==0) return; if(dragPointerDown(e.target, e.clientX, e.clientY, false) || DRAG.mode) e.preventDefault(); if(DRAG.pending) DRAG.pending.mouse = true; });
+document.addEventListener('mousemove', e=>{ if((DRAG.pending || DRAG.mode) && dragPointerMove(e.clientX, e.clientY)) e.preventDefault(); });
+document.addEventListener('mouseup', ()=>dragPointerUp());
+document.addEventListener('click', e=>{ if(DRAG.suppressClick){ e.stopPropagation(); e.preventDefault(); DRAG.suppressClick = false; } }, true);
+document.addEventListener('contextmenu', e=>{ if(DRAG.mode || DRAG.pending) e.preventDefault(); });
+
 function toggleSelected(id){
   if(!isHost() && id !== getMyPlayerId()) return; // players can only tick themselves in or out
   const sel = S.selectedIds||[];
@@ -3406,6 +3542,7 @@ function renderLogin(){
 }
 
 function render(){
+  if(DRAG.mode){ DRAG.pendingRender = true; return; }
   syncSport();
   enforceMyGames();
   const app = document.getElementById('app');
@@ -3591,8 +3728,9 @@ function editPanelHtml(p){
 
 function playerRowHtml(p, i, ranked, total){
   return `
-    <li class="player-row-wrap" style="${p.unavailable?'opacity:.55;':''}">
+    <li class="player-row-wrap" ${ranked && isHost() && !dbFilterActive() ? `data-rank-id="${p.id}"` : ''} style="${p.unavailable?'opacity:.55;':''}">
       <div class="player-row">
+        ${ranked && isHost() && !dbFilterActive() ? `<span class="drag-handle" title="Drag to move up or down" aria-label="Drag to reorder">⠿</span>` : ''}
         ${ranked
           ? `<span class="rank-badge">#${i+1}</span><span class="ability-bar"><i style="width:${Math.round((i/Math.max(1,(total||1)-1))*100)}%"></i></span>`
           : `<span class="rank-badge">?</span>`}
@@ -3943,7 +4081,7 @@ function renderSetup(){
     const checked = sel.includes(p.id);
     const canTick = isHost() || p.id === getMyPlayerId();
     return `
-    <li class="player-row-wrap select-row ${checked?'selected':''} ${canTick?'':'locked'}" ${canTick?`onclick="toggleSelected('${p.id}')"`:''}>
+    <li class="player-row-wrap select-row ${checked?'selected':''} ${canTick?'':'locked'}" data-pid="${p.id}" ${canTick?`onclick="toggleSelected('${p.id}')"`:''}>
       <div class="player-row">
         <span class="rank-badge">${rankLabel}</span>
         <span class="check-box">${checked?'✓':''}</span>
@@ -3998,6 +4136,11 @@ function renderSetup(){
     ${total || todaysGuests.length ? `
       ${isHost() ? '' : `<div class="panel-sub" style="margin-bottom:8px;">${sel.length} selected</div>`}
       <input type="text" id="setupSearchInput" placeholder="Search players…" autocomplete="off" style="margin-bottom:10px;" value="${esc(setupSearch)}" oninput="setSetupSearch(this.value)">
+      ${isHost() && (rankedRows||unrankedRows||guestRows) ? `<div class="sel-tools">
+        <button class="btn btn-sm" onclick="selectAllVisible(true)">✓ Select all</button>
+        <button class="btn btn-sm btn-ghost" onclick="selectAllVisible(false)">Clear</button>
+        <span>Tip: drag down the ticks (or press and hold a name, then drag) to tick lots at once.</span>
+      </div>` : ''}
       ${(rankedRows||unrankedRows||guestRows) ? `<ul class="player-list">${rankedRows}${unrankedRows}${guestRows}</ul>` : `<div class="empty-note">Nobody matches “${esc(setupSearch)}”.</div>`}
     ` : `<div class="empty-note">No players in the database yet — open the player database to add some.</div>`}
     ${extraPlayerPromptHtml(sel)}
