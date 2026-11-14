@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="17f1743064">
+<meta name="md-build" content="403b6dc0bc">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -4502,8 +4502,15 @@ function createPoll(share){
     opts: pollDraft.opts.map((label,i)=>({id:'o'+(i+1), label})),
     status: 'open', decided: null, createdAt: new Date().toISOString(), decidedAt: null
   };
+  const patch = {poll};
+  // only one time: nothing to pick, so it's confirmed straight away and every
+  // Yes ticks that player in for the match (every No ticks them out)
+  if(poll.opts.length===1){
+    poll.status = 'decided'; poll.decided = poll.opts[0].id; poll.decidedAt = poll.createdAt;
+    if(S.phase==='setup' || S.phase==='complete'){ patch.selectedIds = []; patch.rsvpLog = []; }
+  }
   const old = S.poll;
-  saveState({poll});
+  saveState(patch);
   // tidy away the previous poll's answers
   if(old && db) POLLVOTES.filter(v=>v.pollId===old.id).forEach(v=>db.doc(squadPath('pollVotes/'+v.id)).delete().catch(()=>{}));
   if(old && !db){ POLLVOTES = POLLVOTES.filter(v=>v.pollId!==old.id); }
@@ -4671,11 +4678,11 @@ function renderPollCard(){
     ${decided && (S.phase==='setup' || S.phase==='complete') ? `<div class="poll-list">Everyone who’s in has been ticked in for the match. Changing an answer here ticks them in or out.</div>` : ''}
     ${register}
     ${isHost() ? `<div class="poll-actions">
-      ${decided ? `<button class="btn btn-sm btn-primary" onclick="sharePollConfirm()">💬 Send confirmation</button>`
-                : `<button class="btn btn-sm btn-primary" onclick="openWhatsApp(pollShareText(S.poll))">💬 Share poll</button>`}
+      <button class="btn btn-sm btn-primary" onclick="openWhatsApp(pollShareText(S.poll))">💬 Share poll</button>
+      ${decided ? `<button class="btn btn-sm" onclick="sharePollConfirm()">✅ Send final list</button>` : ''}
       ${noReply.length ? `<button class="btn btn-sm" onclick="sharePollNudge()">⏰ Nudge ${noReply.length}</button>` : ''}
       <button class="btn btn-sm" onclick="pollRegister=!pollRegister; render();">${pollRegister ? 'Done' : '✏️ Answer for someone'}</button>
-      ${decided ? `<button class="btn btn-sm btn-ghost" onclick="reopenPoll()">↩ Reopen</button>` : ''}
+      ${decided && p.opts.length>1 ? `<button class="btn btn-sm btn-ghost" onclick="reopenPoll()">↩ Reopen</button>` : ''}
       <button class="btn btn-sm btn-ghost" onclick="openPollForm()">＋ New poll</button>
       <button class="btn btn-sm ${pollEndArm?'btn-danger':'btn-ghost'}" onclick="endPoll()">${pollEndArm ? 'Tap again to remove' : '🗑 Remove'}</button>
     </div>
@@ -4695,7 +4702,7 @@ function renderPollForm(){
       </div>
       <div class="edit-label">Question</div>
       <input type="text" class="field-input" style="width:100%;" id="pollQInput" maxlength="80" value="${escAttr(pollDraft.q)}" oninput="pollDraft.q=this.value">
-      <div class="edit-label" style="margin-top:12px;">Times (tap to add; pick one for a simple yes/no)</div>
+      <div class="edit-label" style="margin-top:12px;">Times (one time = simple Yes/No that ticks people in as they answer)</div>
       <div class="poll-preset">${presets.map((x,i)=>`<button type="button" class="chip-toggle ${pollDraft.opts.includes(x.label)?'active':''}" title="${escAttr(x.label)}" onclick="togglePollPreset(${i})">${esc(x.short)}</button>`).join('')}</div>
       <div class="row" style="gap:8px;">
         <input type="text" class="field-input grow" style="min-width:0;" id="pollCustomInput" maxlength="60" placeholder="Or type one, e.g. Sat 7am at the turf" value="${escAttr(pollDraft.custom)}" oninput="pollDraft.custom=this.value" onkeydown="if(event.key==='Enter') addPollDraftCustom();">
