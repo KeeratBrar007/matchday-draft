@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="16d0467ba4">
+<meta name="md-build" content="7db53abdc8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -680,9 +680,10 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .qr-box{background:#fff; border-radius:var(--radius-sm); padding:10px; display:inline-block; margin-top:10px; line-height:0;}
   .fee-item{display:grid; grid-template-columns:minmax(70px,1fr) 84px minmax(90px,1.2fr) 30px; gap:6px; align-items:center; margin-bottom:6px;}
   .fee-item input, .fee-item select{min-width:0; width:100%;}
-  .fee-pl{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.88rem;}
+  .fee-pl{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.88rem;}
   .fee-pl label{display:flex; align-items:center; gap:8px; cursor:pointer;}
   .fee-pl input[type=number]{width:76px;}
+  .fee-pl .fee-prepaid .btn{padding:3px 7px; font-size:.7rem;}
   .fee-pl .res{font-size:.78rem; color:var(--chalk-dim); text-align:right;}
   .fee-head{font-size:.8rem; color:var(--chalk-faint); text-transform:uppercase; letter-spacing:.06em; margin:14px 0 6px;}
   .poll-head{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
@@ -6502,15 +6503,19 @@ function feeShareText(h, f){
   lines.push('Total ' + rupees(feeTotal(f)) + ' (' + f.items.map(i=>i.label + ' ' + rupees(i.amount)).join(', ') + ')');
   if(f.split!=='custom') lines.push('*' + rupees(feeEach(f)) + ' each* · ' + (f.players||[]).length + ' players');
   const ls = feeLines(f);
-  const owing = ls.filter(l=>l.owes>0), covered = ls.filter(l=>!l.collector && l.owes===0 && l.spent>0 && l.back===0), backs = ls.filter(l=>l.back>0);
+  const owingAll = ls.filter(l=>l.owes>0), owing = owingAll.filter(l=>!l.paid), prepaid = owingAll.filter(l=>l.paid), covered = ls.filter(l=>!l.collector && l.owes===0 && l.spent>0 && l.back===0), backs = ls.filter(l=>l.back>0);
   if(owing.length){ lines.push('', '*To pay:*'); owing.forEach(l=>lines.push('• ' + playerName(l.id) + ' ' + rupees(l.owes) + (l.incl.length ? ' (incl. guest ' + feeGuestNames(l.incl) + ')' : '') + (l.spent ? ' (' + rupees(l.spent) + ' already spent)' : ''))); }
+  if(prepaid.length) lines.push('', '✅ *Already paid:* ' + prepaid.map(l=>playerName(l.id) + ' (' + (l.paid.how==='upi' ? 'UPI' : 'cash') + ')').join(', '));
+  if(!owing.length && prepaid.length) lines.push('Everyone’s paid 🎉');
   const gc = ls.filter(l=>l.coveredBy);
   if(gc.length) lines.push('🙋 Guests: ' + gc.map(l=>playerName(l.id) + ' (' + guestOfText(l.id, (f.guestOf||{})[l.id]) + ')').join(', '));
   if(covered.length) lines.push('', '✅ Already covered: ' + covered.map(l=>playerName(l.id)).join(', '));
   if(backs.length) lines.push('↩️ Gets money back: ' + backs.map(l=>playerName(l.id) + ' ' + rupees(l.back)).join(', '));
   const p = payInfo();
-  lines.push('', upiOk(p.upi) ? ('Pay ' + (p.name||'the host') + ' by UPI (' + p.upi.trim() + ') or cash.') : 'Pay the host in cash.');
-  lines.push('See what you owe / pay in one tap:', payLink());
+  if(owing.length){
+    lines.push('', upiOk(p.upi) ? ('Pay ' + (p.name||'the host') + ' by UPI (' + p.upi.trim() + ') or cash.') : 'Pay the host in cash.');
+    lines.push('See what you owe / pay in one tap:', payLink());
+  }
   return lines.join('\n');
 }
 function shareFeeNudge(){
@@ -6544,6 +6549,7 @@ function closeFeeEditor(){ feeEditId = null; feeDraft = null; render(); }
 function feeAddItem(label, amount){ feeDraft.items.push({label: label||'', amount: amount==null ? '' : amount, paidBy: label==='Water' ? '' : '_c'}); render(); }
 function feeSet(i, k, v){ const it = feeDraft.items[i]; if(!it) return; it[k] = (k==='amount') ? (v==='' ? '' : Math.max(0, Math.round(Number(v)||0))) : v; }
 function feeTogglePlayer(id){ const a = feeDraft.players; const i = a.indexOf(id); if(i>=0) a.splice(i,1); else a.push(id); render(); }
+function feeDraftPaid(id, how){ const pd = feeDraft.paid = feeDraft.paid || {}; if(pd[id] && pd[id].how===how) delete pd[id]; else pd[id] = {how, at: new Date().toISOString()}; render(); }
 function feeSetCustom(id, v){ feeDraft.custom[id] = v==='' ? '' : Math.max(0, Math.round(Number(v)||0)); }
 function cleanFee(d){
   const items = d.items.filter(i=>Number(i.amount)>0).map(i=>({label:(String(i.label||'').trim().slice(0,30) || 'Cost'), amount:Math.round(Number(i.amount)), paidBy: (i.paidBy && i.paidBy!=='' ? i.paidBy : '_c')}));
@@ -6596,7 +6602,9 @@ function renderFeeEditor(){
     if(l.collector) return `<span class="res">collects the money${l.incl.length ? ' (covers ' + esc(feeGuestNames(l.incl)) + ')' : ''}</span>`;
     if(l.back>0) return `<span class="res" style="color:var(--good);">gets back ${rupees(l.back)}</span>`;
     if(l.owes===0) return `<span class="res" style="color:var(--good);">covered ✓</span>`;
-    return `<span class="res">owes <b class="pay-amt">${rupees(l.owes)}</b>${l.incl.length ? '<br>incl. ' + esc(feeGuestNames(l.incl)) : ''}</span>`;
+    const pd = l.paid;
+    return `<span class="res"${pd ? ' style="color:var(--good);"' : ''}>${pd ? 'paid ' + rupees(l.owes) + ' ✓ ' + (pd.how==='upi' ? 'UPI' : 'cash') : 'owes <b class="pay-amt">' + rupees(l.owes) + '</b>'}${l.incl.length ? '<br>incl. ' + esc(feeGuestNames(l.incl)) : ''}</span>
+      <span class="pay-btns fee-prepaid"><button type="button" class="btn btn-sm ${pd && pd.how==='upi' ? 'on' : ''}" title="Already paid by UPI" onclick="feeDraftPaid('${id}','upi')">UPI ✓</button><button type="button" class="btn btn-sm ${pd && pd.how==='cash' ? 'on' : ''}" title="Already paid in cash" onclick="feeDraftPaid('${id}','cash')">Cash ✓</button></span>`;
   };
   const hasGuests = all.some(id=>d.guestOf && d.guestOf[id]);
   const customSum = prev.split==='custom' ? prev.players.reduce((n,id)=>n+(prev.custom[id]||0),0) : 0;
@@ -6636,7 +6644,7 @@ function renderFeeEditor(){
           ${d.players.includes(id) ? res(id) : '<span class="res">not paying</span>'}
         </span>
       </div>`).join('')}
-      <div class="panel-sub" style="margin:8px 0 0;">Untick anyone who plays free.</div>
+      <div class="panel-sub" style="margin:8px 0 0;">Untick anyone who plays free. Already got someone’s money? Tap <b>UPI ✓</b> or <b>Cash ✓</b> next to them and they’ll show as paid in the message.</div>
       ${hasGuests ? `<label class="fee-pl" style="border:0; cursor:pointer;"><span style="display:flex; gap:8px; align-items:center;"><input type="checkbox" ${d.guestsByHost!==false?'checked':''} onchange="feeDraft.guestsByHost=this.checked; render();"> Guests’ share is paid by whoever brought them</span></label>` : ''}
       ${d._err ? `<div class="login-err">${esc(d._err)}</div>` : ''}
       <div class="footer-actions" style="margin-top:14px; justify-content:flex-start; flex-wrap:wrap;">
