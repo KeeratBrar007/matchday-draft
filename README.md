@@ -8,22 +8,42 @@ Matchday Draft is a web app for running a weekly pickup game with friends. It co
 
 It's a single HTML file that installs on a phone like an app. Everyone's phone stays in sync in real time through Firebase.
 
+<p align="center">
+  <img src="docs/live-scoring.gif" width="300" alt="Live scoring: the host taps goals and every phone updates">
+</p>
+
+<p align="center">
+  <img src="docs/poll.png" width="260" alt="Who's in? poll with spots and a waitlist">
+  <img src="docs/auction.png" width="260" alt="Captains' auction with the latest signing shown on that team's side">
+  <img src="docs/result-card.png" width="260" alt="Shareable result card image">
+</p>
+<p align="center">
+  <img src="docs/live-score.png" width="260" alt="Live score with each team's goals on its own side, including an own goal">
+  <img src="docs/turf-money.png" width="260" alt="Turf money: what you owe, with a UPI QR code">
+  <img src="docs/leaderboard.png" width="260" alt="Monthly leaderboard and awards">
+</p>
+
+<sub>Screenshots use made-up demo players.</sub>
+
 ---
 
 ## Features
 
 **Who's playing**
 - "Who's in?" polls that replace the WhatsApp poll, with one or more time slots (always including "No"), one-tap vote links for WhatsApp, and a "seen but not replied" list.
+- Spots and a waitlist: the first to say yes get the spots, everyone after waits in order and moves in automatically when someone drops out.
 - One tap re-creates last week's poll for the same day next week.
 - Today's player list updates itself from the poll.
 
 **Fair teams**
 - Player database with positions and skill ratings per sport. Drag to reorder, and drag across the list to select many players at once.
 - Auto-balanced teams, or a live captains' auction where captains bid any amount from their own phones.
+- Rankings that learn from results: winners move up, more for long games, big margins and upsets.
 - Guests, tagged with whose guest they are (one player, several, or everyone).
 
 **Matches and stats**
-- Live scoring: big +1 buttons during the match that update every phone, and the result saves itself at full time.
+- Live scoring: big +1 buttons during the match that update every phone, each team's goals listed on its own side (own goals included), and the result saves itself at full time.
+- A result card image (score, scorers, player of the match) to share straight to WhatsApp.
 - Match history, leaderboards, player-of-the-match voting, rivalries, attendance and seasons.
 
 **Multiple sports**
@@ -62,7 +82,7 @@ The host code is never stored in the app. The app only contains a SHA-256 finger
 
 Every push to `main` runs the full test suite on GitHub Actions before the site goes live (see [`.github/workflows/checks.yml`](.github/workflows/checks.yml)):
 
-- **17 end-to-end suites (about 470 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
+- **18 end-to-end suites (about 510 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
 - The tests run against a **mock Firestore** that enforces the same rules as the real database, so they also check that friends *can't* do things they shouldn't, like editing results, reading other games, or claiming to be the host.
 - Every suite runs twice, once under the current database rules and once under the game-privacy rules.
 - The site is published only if everything passes. A failed run leaves the last good version live, and the logs and screenshots are kept as build artifacts.
@@ -86,6 +106,7 @@ index.html              the whole app
 sw.js                   service worker (offline + updates)
 manifest.webmanifest    install info and icons
 *.png                   app icons
+docs/                   README screenshots
 tests/                  Playwright suites, mock database, test runner
 .github/workflows/      check-and-publish workflow
 ```

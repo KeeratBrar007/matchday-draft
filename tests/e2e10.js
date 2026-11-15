@@ -70,11 +70,11 @@ const STUB = "window.__opened=[]; window.open=(u)=>{ window.__opened.push(u); re
  await H.click('.poll-opt >> nth=1 >> button:has-text("Pick")'); await wait(400);
  ok(JSON.stringify((await H.evaluate(()=>S.selectedIds)).sort())==='["arjun","karan","rohan"]', 'picking the time ticks in everyone who said yes to it');
  const at = await A.evaluate(()=>document.body.innerText);
- ok(/Confirmed: .*Evening/.test(at) && /3 in · 6 needed for 3v3/.test(at), 'friends see the confirmed time and the count');
+ ok(/Confirmed: .*Evening/.test(at) && /3 of 6 spots filled/.test(at), 'friends see the confirmed time and the count');
  await H.evaluate(()=>{ window.__opened=[]; }); await H.click('button:has-text("Send final list")'); await wait(100);
  const conf = decodeURIComponent((await H.evaluate(()=>window.__opened[0])).split('text=')[1]);
  console.log('--- confirmation ---\n'+conf+'\n---');
- ok(/Confirmed/.test(conf) && /In \(3\)/.test(conf) && /Vikram/.test(conf), 'confirmation message lists in / out / no reply');
+ ok(/Confirmed/.test(conf) && /In \(3\/6\)/.test(conf) && /Vikram/.test(conf), 'confirmation message lists in / out / no reply');
  // Rohan pulls out after confirmation -> ticked out and logged
  await R.click('.poll-opt.no-opt'); await wait(400);
  ok(!(await H.evaluate(()=>S.selectedIds)).includes('rohan'), 'changing to "can’t make it" ticks Rohan out of the match');

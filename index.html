@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="2cdd79f324">
+<meta name="md-build" content="1704686481">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -688,6 +688,11 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .lf-col.b .lf-t{margin-right:5px;}
   .lf-og{white-space:nowrap; font-size:.72rem; font-weight:700; color:var(--danger); text-transform:uppercase; letter-spacing:.04em;}
   .lf-more, .lf-none{font-size:.72rem; color:var(--chalk-faint);}
+  .rc-img{display:block; width:100%; height:auto; border-radius:12px; box-shadow:0 6px 24px rgba(0,0,0,.25);}
+  .wait-opt{border-style:dashed;}
+  .wait-tag{padding:1px 7px; font-size:.66rem; font-weight:700; background:var(--amber-dim, rgba(245,176,40,.18)); border-color:transparent;}
+  .poll-spots{display:inline-flex; align-items:center; gap:4px; font-size:.8rem; color:var(--chalk-dim);}
+  .poll-spots .btn{padding:2px 9px; min-width:0;}
   .live-og-btn{width:100%; margin-top:10px; border-style:dashed;}
   .live-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;}
   .live-btns{display:flex; flex-wrap:wrap; gap:6px;}
@@ -2476,6 +2481,10 @@ function commitSelection(ids, on){
     if(!on && was){ sel.delete(pid); log.push({id:pid, a:'out', t, by:'host'}); }
   });
   if(log.length) saveState({selectedIds: [...sel], rsvpLog: (S.rsvpLog||[]).concat(log).slice(-300)});
+  if(!on && pollWaitActive()){
+    const m = pollVotesMap();
+    log.filter(e=>e.a==='out').forEach(e=>{ const v = m[e.id]; if(v && !v.no && db) db.doc(squadPath('pollVotes/' + S.poll.id + '__' + e.id)).set({pollId:S.poll.id, playerId:e.id, slots:[], no:true, at:new Date().toISOString()}).catch(()=>{}); else if(v && !db){ POLLVOTES = POLLVOTES.map(x=>x===v ? Object.assign({}, x, {slots:[], no:true}) : x); } });
+  }
 }
 const DRAG = {mode:null, pending:null, timer:null, x:0, y:0, raf:null, suppressClick:false, pendingRender:false};
 function dragRowAt(x, y, sel){ const el = document.elementFromPoint(x, y); return el ? el.closest(sel) : null; }
@@ -2598,6 +2607,12 @@ function toggleSelected(id){
   if(!isHost() && id !== getMyPlayerId()) return; // players can only tick themselves in or out
   const sel = S.selectedIds||[];
   const isIn = sel.includes(id);
+  if(pollWaitActive() && findPlayer(id) && !isGuest(id)){
+    const p = S.poll, v = pollVotesMap()[id];
+    if(isIn) return castPollVote(id, [], true);
+    const slots = ((v && !v.no) ? (v.slots||[]) : []).filter(x=>x!==p.decided).concat([p.decided]);
+    return castPollVote(id, slots, false, isHost());   // the host can squeeze someone in past the limit
+  }
   const log = (S.rsvpLog||[]).concat([{id, a: isIn ? 'out' : 'in', t:new Date().toISOString(), by: id===getMyPlayerId() ? 'self' : 'host'}]).slice(-300);
   saveState({selectedIds: isIn ? sel.filter(x=>x!==id) : sel.concat([id]), rsvpLog:log});
 }
@@ -3722,6 +3737,7 @@ function render(){
   if(DRAG.mode || DRAG.pending){ DRAG.pendingRender = true; return; }   // never swap the page out from under a finger
   syncSport();
   enforceMyGames();
+  schedulePollReconcile();
   const app = document.getElementById('app');
   document.body.classList.toggle('is-host', isHost());
   const pageScrollY = window.scrollY;
@@ -3729,7 +3745,7 @@ function render(){
   const modalScrollTop = openModal ? openModal.scrollTop : null;
   // keep the cursor in a login box if a live update re-renders mid-typing
   const ae = document.activeElement;
-  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput' || ae.id==='pinInput' || ae.id==='pinSetInput' || ae.id==='hostConfirmInput' || ae.id==='pollQInput' || ae.id==='pollCustomInput' || ae.id==='newGameName' || ae.id==='payUpiInput' || ae.id==='payNameInput' || ae.id==='bidInput_a' || ae.id==='bidInput_b')) ? ae.id : null;
+  const keepId = (ae && (ae.id==='loginNameInput' || ae.id==='hostCodeInput' || ae.id==='dbSearchInput' || ae.id==='setupSearchInput' || ae.id==='pinInput' || ae.id==='pinSetInput' || ae.id==='hostConfirmInput' || ae.id==='pollQInput' || ae.id==='pollCustomInput' || ae.id==='pollMaxInput' || ae.id==='newGameName' || ae.id==='payUpiInput' || ae.id==='payNameInput' || ae.id==='bidInput_a' || ae.id==='bidInput_b')) ? ae.id : null;
   const keepPos = keepId ? ae.selectionStart : null;
 
   if(!(dbReady && rosterLoaded && (pinsLoaded || !db))){ app.innerHTML = renderLoading(); return; }
@@ -3747,7 +3763,7 @@ function render(){
   app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick()) && !friendBlockedHere()) ? renderProgress() : '') + renderBanner()
     + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (friendBlockedHere() ? `<div class="waiting-note" style="margin:30px 0;">Opening your game…</div>` : (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (liveCardHtml() + myPayCardHtml('home') + hostPaySummaryHtml() + renderPollCard() + renderBody()))))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
-    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
+    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderResultCardModal() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -4064,7 +4080,7 @@ function potmVotingHtml(h){
   }
   return `
   <div class="panel">
-    <div class="panel-title" style="font-size:1.1rem;">🏅 Player of the match</div>
+    <div class="row" style="justify-content:space-between; gap:8px;"><div class="panel-title" style="font-size:1.1rem; margin:0;">🏅 Player of the match</div>${resultCardBtn(h)}</div>
     <div class="panel-sub">${canVote ? "Voted by whoever played that day — tap your pick for each team." : "Only players who took part in this match get a vote."}</div>
     <div class="row" style="gap:16px; flex-wrap:wrap; margin-top:6px;">
       ${teamBlock('a', h.teamAIds||[])}
@@ -4263,7 +4279,7 @@ function renderSetup(){
         <span class="rank-badge">${rankLabel}</span>
         <span class="check-box">${checked?'✓':''}</span>
         <span class="badge-row">${posBadges(p.id)}${starBadge(p.id)}${chemBadge(p.id)}</span>
-        <span class="player-name">${esc(p.name)}${p.guest ? guestTag(p.id) : ''}</span>
+        <span class="player-name">${esc(p.name)}${p.guest ? guestTag(p.id) : ''}${!checked && waitPos(p.id) ? ' <span class="chip wait-tag">⏳ waitlist #' + waitPos(p.id) + '</span>' : ''}</span>
         ${p.guest && isHost() ? `<button type="button" class="icon-btn" title="Whose guest?" onclick="event.stopPropagation(); guestEditId = (guestEditId==='${p.id}' ? null : '${p.id}'); render();">✎</button>` : ''}
       </div>
       ${p.guest && isHost() && guestEditId===p.id ? `<div class="edit-panel" onclick="event.stopPropagation();"><div class="edit-label">${esc(p.name)} is a guest of…</div>${guestOfChipsHtml(guestOf(p.id), pid=>`guestOfEditToggle('${p.id}','${pid}')`, p.id)}</div>` : ''}
@@ -6891,6 +6907,7 @@ function liveCardHtml(){
       <div class="lt b">Team B</div>
     </div>
     ${evs.length ? `<div class="live-feed">${liveSideHtml(L,'a')}${liveSideHtml(L,'b')}</div>` : (on ? `<div class="live-feed empty">Kick-off! Scores appear here as they happen.</div>` : '')}
+    ${!on ? `<div class="poll-actions">${resultCardBtn(HISTORY.find(x=>x.id===L.hid), 'btn-primary')}</div>` : ''}
     ${isHost() && on ? `
       <div class="live-grid">
         <div><div class="lt a" style="margin-bottom:6px;">Team A</div>${btnRow('a')}</div>
@@ -6927,6 +6944,146 @@ function renderLiveAsk(){
   </div>`;
 }
 setInterval(()=>{ const c = document.getElementById('liveClock'); if(c && liveOn()) c.textContent = liveClockText(S.live); }, 1000);
+
+
+/* ============================= Result card image =============================
+   A picture of the result (score, scorers, player of the match) to post in the
+   WhatsApp group. Drawn on a canvas in the phone itself, then handed to the
+   share sheet (or saved). Anyone can make one for any match with a result. */
+let resultCardOpen = null, resultCardUrl = '', resultCardBlob = null, resultCardMsg = '';
+function resultCardBtn(h, cls){
+  if(!h || !h.winner) return '';
+  return `<button class="btn btn-sm ${cls||''}" onclick="event.stopPropagation(); openResultCard('${h.id}')">📸 Result card</button>`;
+}
+function rcSideLines(h, team){
+  const ids = new Set(team==='a' ? (h.teamAIds||[]) : (h.teamBIds||[]));
+  const other = new Set(team==='a' ? (h.teamBIds||[]) : (h.teamAIds||[]));
+  const fb = SPORT.key==='football';
+  const out = (h.scorers||[]).filter(x=>x.playerId && x.goals && ids.has(x.playerId)).sort((a,b)=>b.goals-a.goals)
+    .map(x=> fb ? playerName(x.playerId) + (x.goals>1 ? ' ×' + x.goals : '') : playerName(x.playerId) + ' ' + x.goals);
+  // own goals count for the other side
+  (h.ownGoals||[]).filter(x=>x.playerId && other.has(x.playerId)).forEach(x=> out.push(playerName(x.playerId) + ' (OG)' + (x.goals>1 ? ' ×' + x.goals : '')));
+  return out;
+}
+function rcPotm(h, team){
+  const w = computePotmWinner(h, team);
+  return w ? w.leaders.map(playerName).join(' & ') : '';
+}
+function rcFit(ctx, text, maxW, size, weight, family){
+  let s = size;
+  do { ctx.font = weight + ' ' + s + 'px ' + family; if(ctx.measureText(text).width <= maxW) break; s -= 2; } while(s > 18);
+  return s;
+}
+async function drawResultCard(h){
+  try{ if(document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise(r=>setTimeout(r, 1500))]); }catch(e){}
+  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  const css = getComputedStyle(document.documentElement);
+  const colA = (css.getPropertyValue('--teamA')||'').trim() || '#1f78c8', colB = (css.getPropertyValue('--teamB')||'').trim() || '#d6453d';
+  const head = "Teko, 'Arial Narrow', sans-serif", body = "'Work Sans', system-ui, sans-serif", mono = "'Space Mono', ui-monospace, monospace";
+  // background
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0d1b14'); g.addColorStop(1, '#06100b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = .07; ctx.strokeStyle = '#fff'; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(W/2, 640, 230, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, 640); ctx.lineTo(W, 640); ctx.stroke();
+  ctx.globalAlpha = 1;
+  // team colour bands
+  ctx.fillStyle = colA; ctx.fillRect(0, 0, W/2, 14); ctx.fillStyle = colB; ctx.fillRect(W/2, 0, W/2, 14);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  // title
+  ctx.fillStyle = 'rgba(255,255,255,.62)'; ctx.font = '600 34px ' + body;
+  const when = new Date(h.date).toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+  ctx.fillText((SPORT.icon || '') + '  ' + SPORT.name.toUpperCase() + '  ·  ' + when, W/2, 104);
+  ctx.fillStyle = '#fff'; ctx.font = '600 64px ' + head;
+  const gname = (currentSquadName && currentSquadName()) || 'Matchday';
+  rcFit(ctx, gname, W - 140, 64, '600', head); ctx.fillText(gname, W/2, 180);
+  // score
+  const sA = String(h.scoreA ?? '–') + (SPORT.teamWickets && h.wktsA!=null ? '/' + h.wktsA : '');
+  const sB = String(h.scoreB ?? '–') + (SPORT.teamWickets && h.wktsB!=null ? '/' + h.wktsB : '');
+  ctx.font = '700 64px ' + head; ctx.fillStyle = colA; ctx.fillText('TEAM A', W*0.25, 330); ctx.fillStyle = colB; ctx.fillText('TEAM B', W*0.75, 330);
+  const big = rcFit(ctx, sA + '  ' + sB, W*0.62, 230, '700', mono);
+  ctx.font = '700 ' + big + 'px ' + mono; ctx.fillStyle = '#fff';
+  ctx.fillText(sA, W*0.25, 560); ctx.fillText(sB, W*0.75, 560);
+  ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillText(':', W/2, 545);
+  // result line
+  const res = h.winner==='draw' ? SPORT.draw || 'Draw' : 'Team ' + h.winner.toUpperCase() + ' wins';
+  ctx.font = '600 44px ' + body; ctx.fillStyle = h.winner==='a' ? colA : h.winner==='b' ? colB : '#f5c542';
+  ctx.fillText((h.winner==='draw' ? '🤝 ' : '🏆 ') + res + (h.duration ? '  ·  ' + h.duration + ' min' : ''), W/2, 660);
+  // scorers, one column per team
+  const linesA = rcSideLines(h, 'a'), linesB = rcSideLines(h, 'b');
+  ctx.font = '600 30px ' + body; ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.fillText((SPORT.s1.icon||'') + ' ' + SPORT.s1.name.toUpperCase(), W/2, 750);
+  const rows = Math.min(7, Math.max(linesA.length, linesB.length, 1));
+  for(let i=0; i<rows; i++){
+    const y = 812 + i*54;
+    [['a', linesA, W*0.25], ['b', linesB, W*0.75]].forEach(([t, ls, x])=>{
+      let txt = ls[i] || (i===0 ? '–' : ''); if(i===6 && ls.length>7) txt = '+' + (ls.length-6) + ' more';
+      if(!txt) return;
+      ctx.fillStyle = '#fff'; const sz = rcFit(ctx, txt, W*0.42, 40, '500', body); ctx.font = '500 ' + sz + 'px ' + body; ctx.fillText(txt, x, y);
+    });
+  }
+  // player of the match
+  const pA = rcPotm(h, 'a'), pB = rcPotm(h, 'b');
+  let y = 812 + rows*54 + 40;
+  if(pA || pB){
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.font = '600 30px ' + body; ctx.fillText('🏅 PLAYER OF THE MATCH', W/2, y); y += 62;
+    [[pA, W*0.25, colA], [pB, W*0.75, colB]].forEach(([n, x, col])=>{ if(!n) return; ctx.fillStyle = col; const sz = rcFit(ctx, n, W*0.42, 50, '600', head); ctx.font = '600 ' + sz + 'px ' + head; ctx.fillText(n, x, y); });
+  }
+  // footer
+  ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.font = '500 28px ' + body;
+  ctx.fillText('Made with Matchday Draft', W/2, H - 60);
+  return c;
+}
+async function openResultCard(hid){
+  const h = HISTORY.find(x=>x.id===hid); if(!h || !h.winner) return;
+  resultCardOpen = hid; resultCardUrl = ''; resultCardBlob = null; resultCardMsg = ''; render();
+  try{
+    const c = await drawResultCard(h);
+    resultCardUrl = c.toDataURL('image/png');
+    resultCardBlob = await new Promise(r=> c.toBlob ? c.toBlob(r, 'image/png') : r(null));
+  }catch(e){ resultCardMsg = 'Couldn’t make the picture on this phone.'; }
+  if(resultCardOpen===hid) render();
+}
+function resultCardFile(){
+  const h = HISTORY.find(x=>x.id===resultCardOpen);
+  const day = h ? new Date(h.date).toISOString().slice(0,10) : 'match';
+  const name = 'matchday-result-' + day + '.png';
+  return (resultCardBlob && typeof File==='function') ? new File([resultCardBlob], name, {type:'image/png'}) : null;
+}
+function canShareResultCard(){ const f = resultCardFile(); try{ return !!(f && navigator.canShare && navigator.canShare({files:[f]})); }catch(e){ return false; } }
+async function shareResultCard(){
+  const f = resultCardFile(); if(!f) return;
+  try{ await navigator.share({files:[f], text: SPORT.icon + ' ' + SPORT.name + ' result'}); }
+  catch(e){ if(e && e.name!=='AbortError'){ resultCardMsg = 'Sharing didn’t work here. Use Save instead.'; render(); } }
+}
+function saveResultCard(){
+  if(!resultCardUrl) return;
+  const f = resultCardFile();
+  const a = document.createElement('a'); a.href = resultCardUrl; a.download = f ? f.name : 'matchday-result.png';
+  document.body.appendChild(a); a.click(); a.remove();
+  resultCardMsg = 'Saved. On an iPhone, you can also press and hold the picture and choose “Save to Photos”.'; render();
+}
+function renderResultCardModal(){
+  if(!resultCardOpen) return '';
+  const share = canShareResultCard();
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this){ resultCardOpen=null; render(); }">
+    <div class="modal" style="max-width:440px;">
+      <div class="row" style="justify-content:space-between; margin-bottom:8px;">
+        <div class="panel-title" style="margin:0;">📸 Result card</div>
+        <button class="icon-btn" onclick="resultCardOpen=null; render();">✕</button>
+      </div>
+      ${resultCardUrl ? `<img class="rc-img" id="resultCardImg" src="${resultCardUrl}" alt="Result card">` : `<div class="waiting-note" style="margin:40px 0;">${resultCardMsg ? esc(resultCardMsg) : 'Drawing…'}</div>`}
+      ${resultCardUrl ? `<div class="footer-actions" style="justify-content:flex-start; margin-top:12px; flex-wrap:wrap;">
+        ${share ? `<button class="btn btn-primary" onclick="shareResultCard()">💬 Share (WhatsApp…)</button>` : ''}
+        <button class="btn ${share ? '' : 'btn-primary'}" onclick="saveResultCard()">⬇ Save image</button>
+      </div>
+      ${!share ? `<div class="panel-sub" style="margin:8px 0 0;">Save it, then send it from WhatsApp’s photo button.</div>` : ''}
+      ${resultCardMsg ? `<div class="panel-sub" style="margin:8px 0 0;">${esc(resultCardMsg)}</div>` : ''}` : ''}
+    </div>
+  </div>`;
+}
 
 /* ============================= "Who's in?" polls =============================
    The host makes a poll here and shares it to the WhatsApp group; friends tap the
@@ -7015,12 +7172,12 @@ function nextSameWeekday(isoD){
 function repeatPollPlan(){
   const lp = SQUAD.lastPoll;
   if(!lp || !Array.isArray(lp.opts) || !lp.opts.length) return null;
-  return {q: lp.q || pollDefaultQ(), opts: lp.opts.map(o=> (o && o.d && o.part) ? {label: slotLabel(nextSameWeekday(o.d), o.part), d: isoDay(nextSameWeekday(o.d)), part: o.part} : {label: (o && o.label) || ''}).filter(o=>o.label)};
+  return {max: lp.max || null, q: lp.q || pollDefaultQ(), opts: lp.opts.map(o=> (o && o.d && o.part) ? {label: slotLabel(nextSameWeekday(o.d), o.part), d: isoDay(nextSameWeekday(o.d)), part: o.part} : {label: (o && o.label) || ''}).filter(o=>o.label)};
 }
 function repeatLastPoll(){
   if(!isHost()) return;
   const plan = repeatPollPlan(); if(!plan) return;
-  pollDraft = {q: plan.q, opts: plan.opts.map(o=>o.label), custom:'', meta: {}};
+  pollDraft = {q: plan.q, opts: plan.opts.map(o=>o.label), custom:'', meta: {}, max: plan.max || ''};
   plan.opts.forEach(o=>{ if(o.d) pollDraft.meta[o.label] = {d:o.d, part:o.part}; });
   createPoll(true);
 }
@@ -7036,7 +7193,8 @@ function pollPresetSlots(){
 }
 function openPollForm(){
   if(!isHost()) return;
-  pollDraft = {q: pollDefaultQ(), opts: [], custom: ''}; pollFormErr = ''; pollFormOpen = true; render();
+  const lp = SQUAD.lastPoll;
+  pollDraft = {q: pollDefaultQ(), opts: [], custom: '', max: (lp && 'max' in lp) ? (lp.max||'') : (S.format||6)*2}; pollFormErr = ''; pollFormOpen = true; render();
 }
 function togglePollDraftOpt(label){
   const i = pollDraft.opts.indexOf(label);
@@ -7074,7 +7232,8 @@ function createPoll(share){
     id: 'p' + Date.now().toString(36),
     q: (pollDraft.q||'').trim().slice(0,80) || pollDefaultQ(),
     opts: pollDraft.opts.map((label,i)=>Object.assign({id:'o'+(i+1), label}, ((pollDraft.meta||{})[label]) || {})),
-    status: 'open', decided: null, createdAt: new Date().toISOString(), decidedAt: null
+    status: 'open', decided: null, createdAt: new Date().toISOString(), decidedAt: null,
+    max: Number(pollDraft.max) > 0 ? Math.min(99, Math.round(Number(pollDraft.max))) : null
   };
   const patch = {poll};
   // only one time: nothing to pick, so it's confirmed straight away and every
@@ -7086,7 +7245,7 @@ function createPoll(share){
   const old = S.poll;
   saveState(patch);
   // remember it, so next week is one tap
-  saveSquadDoc(Object.assign({}, SQUAD, {lastPoll: {q: poll.q, opts: poll.opts.map(o=> o.d ? {label:o.label, d:o.d, part:o.part} : {label:o.label})}}));
+  saveSquadDoc(Object.assign({}, SQUAD, {lastPoll: {max: poll.max, q: poll.q, opts: poll.opts.map(o=> o.d ? {label:o.label, d:o.d, part:o.part} : {label:o.label})}}));
   // tidy away the previous poll's answers
   if(old && db) POLLVOTES.filter(v=>v.pollId===old.id).forEach(v=>db.doc(squadPath('pollVotes/'+v.id)).delete().catch(()=>{}));
   if(old && !db){ POLLVOTES = POLLVOTES.filter(v=>v.pollId!==old.id); }
@@ -7094,13 +7253,67 @@ function createPoll(share){
   if(share) openWhatsApp(pollShareText(poll));
   render();
 }
-function castPollVote(playerId, slots, no){
+/* ---- waitlist ----
+   A poll can have a number of spots (poll.max). Once a time is confirmed, the first
+   people to say yes fill the spots; anyone after that waits in the order they said yes,
+   and moves in automatically when someone drops out. The order of S.selectedIds is the
+   order people got in; the waitlist is everyone who said yes to the confirmed time but
+   isn't in. Whoever's phone records a drop-out also moves the next person in (friends
+   may already change selectedIds), and the host's phone tidies up anything missed. */
+function pollMax(p){ p = p || S.poll; return (p && Number(p.max) > 0) ? Number(p.max) : 0; }
+function pollWaitActive(){ const p = S.poll; return !!(p && p.status==='decided' && pollMax(p) && (S.phase==='setup' || S.phase==='complete')); }
+function pollYesOrder(optId, exclude){
+  return Object.values(pollVotesMap()).filter(v=>!v.no && (v.slots||[]).includes(optId) && v.playerId!==exclude)
+    .sort((a,b)=> String(a.at||'').localeCompare(String(b.at||''))).map(v=>v.playerId);
+}
+function pollWaitlist(sel, exclude){
+  const p = S.poll; if(!p || p.status!=='decided' || !pollMax(p)) return [];
+  const inSet = new Set(sel || S.selectedIds || []);
+  // A "Yes" older than that person's latest drop-out is stale: their "No" just hasn't
+  // reached this phone yet (answers and the player list arrive separately).
+  const lastOut = {}; (S.rsvpLog||[]).forEach(e=>{ if(e.a==='out') lastOut[e.id] = e.t; else if(e.a==='in') delete lastOut[e.id]; });
+  const m = pollVotesMap();
+  return pollYesOrder(p.decided, exclude).filter(id=>!inSet.has(id) && findPlayer(id) && !(lastOut[id] && String((m[id]||{}).at||'') <= String(lastOut[id])));
+}
+function waitPos(id){ const i = pollWaitlist().indexOf(id); return i<0 ? 0 : i+1; }
+// move people up from the waitlist while there's room; returns the new list + log entries
+function pollFillSpots(sel, exclude){
+  const max = pollMax(); const out = sel.slice(), log = [], t = new Date().toISOString();
+  if(!max) return {sel: out, log};
+  const wl = pollWaitlist(out, exclude);
+  while(out.length < max && wl.length){ const id = wl.shift(); out.push(id); log.push({id, a:'in', t, by:'waitlist'}); }
+  return {sel: out, log};
+}
+let pollReconcileTimer = null;
+function schedulePollReconcile(){
+  if(!isHost() || !pollWaitActive() || pollReconcileTimer) return;
+  const sel = S.selectedIds||[];
+  if(sel.length >= pollMax() || !pollWaitlist().length) return;
+  pollReconcileTimer = setTimeout(()=>{
+    pollReconcileTimer = null;
+    if(!isHost() || !pollWaitActive()) return;
+    const cur = S.selectedIds||[];
+    const f = pollFillSpots(cur);
+    if(f.log.length) saveState({selectedIds: f.sel, rsvpLog: (S.rsvpLog||[]).concat(f.log).slice(-300)});
+  }, 900);
+}
+function setPollMax(n){
+  if(!isHost() || !S.poll) return;
+  const max = n>0 ? Math.min(99, Math.round(n)) : null;
+  saveState({poll: Object.assign({}, S.poll, {max})});
+  saveSquadDoc(Object.assign({}, SQUAD, {lastPoll: Object.assign({}, SQUAD.lastPoll||{}, {max})}));
+}
+function castPollVote(playerId, slots, no, force){
   const p = S.poll;
   if(!p || !playerId || !findPlayer(playerId)) return;
   if(!isHost() && playerId !== getMyPlayerId()) return;   // friends answer only for themselves
   const vid = p.id + '__' + playerId;
   if(playerId === getMyPlayerId()) pollSeenMarked.add(p.id);   // an answer means seen; never overwrite it with a "seen" mark
-  const doc = {pollId: p.id, playerId, slots: (slots||[]).filter(x=>p.opts.some(o=>o.id===x)), no: !!no, at: new Date().toISOString()};
+  const now = new Date().toISOString();
+  const doc = {pollId: p.id, playerId, slots: (slots||[]).filter(x=>p.opts.some(o=>o.id===x)), no: !!no, at: now};
+  // still saying yes to something you'd already said yes to: you keep your place in the queue
+  const prevV = pollVotesMap()[playerId];
+  if(!doc.no && prevV && !prevV.no && prevV.at && (prevV.slots||[]).some(x=>doc.slots.includes(x))) doc.at = prevV.at;
   if(db){
     db.doc(squadPath('pollVotes/' + vid)).set(doc).catch(()=>{});
   }else{
@@ -7111,9 +7324,17 @@ function castPollVote(playerId, slots, no){
   if(p.status==='decided' && (S.phase==='setup' || S.phase==='complete')){
     const nowIn = !doc.no && doc.slots.includes(p.decided);
     const sel = S.selectedIds||[], isSel = sel.includes(playerId);
-    if(nowIn !== isSel){
-      const log = (S.rsvpLog||[]).concat([{id: playerId, a: nowIn ? 'in' : 'out', t: doc.at, by: playerId===getMyPlayerId() ? 'self' : 'host'}]).slice(-300);
-      saveState({selectedIds: nowIn ? sel.concat([playerId]) : sel.filter(x=>x!==playerId), rsvpLog: log});
+    const by = playerId===getMyPlayerId() ? 'self' : 'host', max = pollMax(p);
+    if(nowIn && !isSel){
+      // full: they wait their turn (the host can still squeeze someone in)
+      if(!max || force || sel.length < max){
+        const log = (S.rsvpLog||[]).concat([{id: playerId, a:'in', t: now, by}]).slice(-300);
+        saveState({selectedIds: sel.concat([playerId]), rsvpLog: log});
+      }
+    }else if(!nowIn && isSel){
+      const f = pollFillSpots(sel.filter(x=>x!==playerId), playerId);
+      const log = (S.rsvpLog||[]).concat([{id: playerId, a:'out', t: now, by}], f.log).slice(-300);
+      saveState({selectedIds: f.sel, rsvpLog: log});
     }
   }
   render();
@@ -7146,7 +7367,8 @@ function pollAnswerOne(optId, yes, pid){
 function decidePoll(optId){
   if(!isHost() || !S.poll) return;
   const m = pollVotesMap(), t = new Date().toISOString();
-  const ins = Object.values(m).filter(v=>!v.no && (v.slots||[]).includes(optId)).map(v=>v.playerId);
+  const all = pollYesOrder(optId).filter(id=>findPlayer(id)), max = pollMax();
+  const ins = max ? all.slice(0, max) : all;
   const patch = {poll: Object.assign({}, S.poll, {status:'decided', decided: optId, decidedAt: t})};
   if(S.phase==='setup' || S.phase==='complete'){
     patch.selectedIds = ins;
@@ -7173,11 +7395,13 @@ function sharePollNudge(){
 function sharePollConfirm(){
   const p = S.poll; if(!p || p.status!=='decided') return;
   const o = p.opts.find(x=>x.id===p.decided);
-  const ins = pollNamesFor(p.decided).map(playerName);
+  const wlIds = pollWaitlist();
+  const ins = pollNamesFor(p.decided).filter(id=>!wlIds.includes(id)).map(playerName);
   const m = pollVotesMap();
   const outs = pollEligible().filter(x=>pollAnswered(m[x.id]) && !(m[x.id].slots||[]).includes(p.decided)).map(x=>x.name);
   const quiet = pollNoReply().map(x=>x.name);
-  const lines = ['✅ *Confirmed: ' + (o ? o.label : '') + '*', '', '*In (' + ins.length + '):* ' + (ins.join(', ') || '–')];
+  const lines = ['✅ *Confirmed: ' + (o ? o.label : '') + '*', '', '*In (' + ins.length + (pollMax(p) ? '/' + pollMax(p) : '') + '):* ' + (ins.join(', ') || '–')];
+  if(wlIds.length) lines.push('*⏳ Waitlist:* ' + wlIds.map((id,i)=>(i+1) + '. ' + playerName(id)).join(', ') + ' (you move in automatically if someone drops out)');
   if(outs.length) lines.push('*Can’t make it:* ' + outs.join(', '));
   const seenNames = new Set(pollSeenOnly().map(x=>x.name));
   const seenQ = quiet.filter(n=>seenNames.has(n)), unopenedQ = quiet.filter(n=>!seenNames.has(n));
@@ -7196,11 +7420,14 @@ function renderPollCard(){
   const m = pollVotesMap(), me = getMyPlayerId(), mine = me ? m[me] : null;
   const elig = pollEligible();
   const replied = elig.filter(x=>pollAnswered(m[x.id])).length;
-  const need = (S.format||6) * 2;
+  const max = pollMax(p), need = max || (S.format||6) * 2;
   const decided = p.status==='decided';
+  const wl = decided ? pollWaitlist() : [], myWait = me ? wl.indexOf(me) + 1 : 0;
   const single = decided ? p.opts.find(o=>o.id===p.decided) : (p.opts.length===1 ? p.opts[0] : null);
   const optRow = (o)=>{
-    const ids = pollNamesFor(o.id), n = ids.length;
+    let ids = pollNamesFor(o.id);
+    if(decided && max) ids = ids.filter(id=>!wl.includes(id));
+    const n = ids.length, over = (!decided && max && n > max) ? n - max : 0;
     const isMine = !!(mine && !mine.no && (mine.slots||[]).includes(o.id));
     const pct = Math.min(100, Math.round(100*n/Math.max(need,1)));
     const act = !me ? '' : (single ? `pollAnswerOne('${o.id}', true)` : `togglePollSlot('${o.id}')`);
@@ -7210,12 +7437,21 @@ function renderPollCard(){
         <div class="poll-opt-label">${single ? '✅ Yes' + (decided ? ', I’m in' : '') : esc(o.label)}</div>
         <div class="poll-bar"><i style="width:${pct}%"></i></div>
         <div class="poll-names">${n ? ids.map(id=>esc(playerName(id))).join(', ') : 'Nobody yet'}</div>
+        ${over ? `<div class="poll-names" style="color:var(--amber-ink, var(--chalk-dim));">${over} more than the ${max} spots: they’d go on the waitlist</div>` : ''}
       </div>
       <div class="poll-count">${n}<small>of ${need}</small></div>
       ${(isHost() && !decided) ? `<button class="btn btn-sm" style="flex:none;" onclick="event.stopPropagation(); decidePoll('${o.id}')">Pick</button>` : ''}
     </div>`;
   };
   const noIds = elig.filter(x=>{ const v = m[x.id]; if(!pollAnswered(v)) return false; return decided ? !(v.slots||[]).includes(p.decided) : !!v.no; }).map(x=>x.id);
+  const waitRow = wl.length ? `<div class="poll-opt wait-opt ${myWait?'mine':''}">
+      ${me ? `<span class="poll-tick" style="${myWait ? 'border-color:transparent;' : 'visibility:hidden;'}">${myWait?'⏳':''}</span>` : ''}
+      <div class="poll-opt-main">
+        <div class="poll-opt-label">⏳ Waitlist</div>
+        <div class="poll-names">${wl.map((id,i)=>(i+1) + '. ' + esc(playerName(id))).join(' · ')}</div>
+      </div>
+      <div class="poll-count">${wl.length}</div>
+    </div>` : '';
   const myNo = !!(me && noIds.includes(me));
   const noRow = `<div class="poll-opt no-opt ${myNo?'mine':''} ${me?'tap':''}" ${me?`onclick="pollAnswerNo()" role="button" tabindex="0"`:''}>
       ${me ? `<span class="poll-tick">${myNo?'✓':''}</span>` : ''}
@@ -7239,9 +7475,11 @@ function renderPollCard(){
       <div class="poll-q">📊 ${esc(p.q)}</div>
       <div class="poll-meta">${replied} of ${elig.length} replied${pollSeenOnly().length ? '<br>' + pollSeenOnly().length + ' seen' : ''}</div>
     </div>
-    ${won ? `<div class="poll-won">✅ Confirmed: ${esc(won.label)}<small>${pollNamesFor(won.id).length} in · ${need} needed for ${S.format}v${S.format}</small></div>`
+    ${won ? `<div class="poll-won">✅ Confirmed: ${esc(won.label)}<small>${max ? (S.selectedIds||[]).length + ' of ' + max + ' spots filled' + (wl.length ? ' · ' + wl.length + ' on the waitlist' : '') : pollNamesFor(won.id).length + ' in · ' + need + ' needed for ' + S.format + 'v' + S.format}</small></div>`
           : (p.opts.length>1 ? `<div class="panel-sub" style="margin:4px 0 0;">Tick every time that works for you, or No.</div>` : `<div class="poll-when">🗓 ${esc(p.opts[0].label)}</div>`)}
     ${(decided ? [won] : p.opts).filter(Boolean).map(optRow).join('')}
+    ${waitRow}
+    ${myWait ? `<div class="banner amber" style="margin:8px 0 0;">⏳ You’re <b>#${myWait}</b> on the waitlist. If someone drops out, you’re moved in automatically.</div>` : ''}
     ${noRow}
     ${!me && !isHost() ? `<div class="panel-sub" style="margin-top:8px;">Log in with your name to answer.</div>` : ''}
     ${(()=>{
@@ -7256,13 +7494,14 @@ function renderPollCard(){
     ${isHost() ? `<div class="poll-actions">
       <button class="btn btn-sm btn-primary" onclick="openWhatsApp(pollShareText(S.poll))">💬 Share poll</button>
       ${decided ? `<button class="btn btn-sm" onclick="sharePollConfirm()">✅ Send final list</button>` : ''}
+      <span class="poll-spots">Spots <button class="btn btn-sm btn-ghost" onclick="setPollMax(${max ? max-1 : need-1})" ${max===1?'disabled':''}>−</button><b>${max || 'no limit'}</b><button class="btn btn-sm btn-ghost" onclick="setPollMax(${max ? max+1 : need})">＋</button>${max ? `<button class="btn btn-sm btn-ghost" onclick="setPollMax(0)">No limit</button>` : ''}</span>
       ${noReply.length ? `<button class="btn btn-sm" onclick="sharePollNudge()">⏰ Nudge ${noReply.length}</button>` : ''}
       <button class="btn btn-sm" onclick="pollRegister=!pollRegister; render();">${pollRegister ? 'Done' : '✏️ Answer for someone'}</button>
       ${decided && p.opts.length>1 ? `<button class="btn btn-sm btn-ghost" onclick="reopenPoll()">↩ Reopen</button>` : ''}
       <button class="btn btn-sm btn-ghost" onclick="openPollForm()">＋ New poll</button>
       <button class="btn btn-sm ${pollEndArm?'btn-danger':'btn-ghost'}" onclick="endPoll()">${pollEndArm ? 'Tap again to remove' : '🗑 Remove'}</button>
     </div>
-    ${!decided ? `<div class="poll-list">When you’re ready, tap <b>Pick</b> on a time to confirm it. Everyone who said yes gets ticked in.</div>` : ''}` : ''}
+    ${!decided ? `<div class="poll-list">When you’re ready, tap <b>Pick</b> on a time to confirm it. ${max ? 'The first ' + max + ' who said yes get ticked in; the rest go on the waitlist.' : 'Everyone who said yes gets ticked in.'}</div>` : ''}` : ''}
   </div>`;
 }
 function renderPollForm(){
@@ -7286,6 +7525,11 @@ function renderPollForm(){
       </div>
       ${pollDraft.opts.length ? `<div class="poll-list" style="margin-top:12px;"><b>Options:</b></div>
         ${pollDraft.opts.map((l,i)=>`<div class="row" style="justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line);"><span>${esc(l)}</span><button class="icon-btn" onclick="removePollDraftOpt(${i})">✕</button></div>`).join('')}` : ''}
+      <div class="edit-label" style="margin-top:12px;">Spots</div>
+      <div class="row" style="gap:8px; align-items:center;">
+        <input type="number" class="field-input" style="width:90px;" id="pollMaxInput" min="1" max="99" inputmode="numeric" placeholder="No limit" value="${escAttr(pollDraft.max)}" oninput="pollDraft.max=this.value">
+        <span class="panel-sub" style="margin:0;">Once a time is picked, the first ${Number(pollDraft.max)>0 ? Number(pollDraft.max) : 'N'} to say yes are in. Anyone after that goes on a waitlist and moves in automatically if someone drops out. Leave empty for no limit.</span>
+      </div>
       ${pollFormErr ? `<div class="login-err">${esc(pollFormErr)}</div>` : ''}
       ${S.poll && pollVisible() ? `<div class="panel-sub" style="margin:10px 0 0;">This replaces the current poll and its answers.</div>` : ''}
       <div class="footer-actions" style="margin-top:14px; justify-content:flex-start;">
@@ -7564,6 +7808,7 @@ function profileMatchesHtml(p, isMe){
         <div class="pm-top">${esc(score)} <small>· ${esc(when)} · ${esc(matchModeLabel(h.mode))}</small></div>
         <div class="pm-sub">${isMe?'You':esc(p.name)} played for <b>Team ${side.toUpperCase()}</b>${extra ? ' · '+extra : ''}</div>
         <div class="pm-sub">🏅 Man of the match: ${potmLineHtml(h, p.id)}</div>
+        ${h.winner ? `<div style="margin-top:6px;">${resultCardBtn(h, 'btn-ghost')}</div>` : ''}
         ${priceLineHtml(h, p.id)}
         ${isMe ? (()=>{
           const pv = h.potmVotes || {};
