@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<meta name="md-build" content="1704686481">
+<meta name="md-build" content="481e7f11ad">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Matchday">
@@ -688,6 +688,10 @@ try{ var __tc = document.querySelector('meta[name=theme-color]'); if(__tc) __tc.
   .lf-col.b .lf-t{margin-right:5px;}
   .lf-og{white-space:nowrap; font-size:.72rem; font-weight:700; color:var(--danger); text-transform:uppercase; letter-spacing:.04em;}
   .lf-more, .lf-none{font-size:.72rem; color:var(--chalk-faint);}
+  .ov-plans{display:flex; flex-direction:column; gap:8px;}
+  .ov-plan{display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:10px 14px; min-height:52px;}
+  .ov-plan small{font-weight:400; color:var(--chalk-dim); font-size:.78rem;}
+  .select-row.over-limit{opacity:.55;}
   .rc-img{display:block; width:100%; height:auto; border-radius:12px; box-shadow:0 6px 24px rgba(0,0,0,.25);}
   .wait-opt{border-style:dashed;}
   .wait-tag{padding:1px 7px; font-size:.66rem; font-weight:700; background:var(--amber-dim, rgba(245,176,40,.18)); border-color:transparent;}
@@ -927,6 +931,7 @@ function defaultState(){
     // whenever the format changes.
     oddSide:null,
     extraConfirmedEven:false,
+    benchOk:false,        // host chose: keep the format, extra players go on the bench
     updatedAt:null
   };
 }
@@ -2461,7 +2466,53 @@ function unlinkChemistry(idx){
 function setFormat(n){
   // changing the format changes what "exactly enough" even means, so any
   // earlier answer to the "is there an extra player" prompt no longer applies
-  saveState({format:n, oddSide:null, extraConfirmedEven:false});
+  saveState({format:n, oddSide:null, extraConfirmedEven:false, benchOk:false});
+}
+/* ---- picking more players than the format needs ----
+   When the host's tap (or drag, or Select all) would take the list past what the
+   format needs, the extra players aren't ticked yet: the host is asked first
+   (uneven teams, a bigger format, or extras on the bench), then they're added. */
+let overflowAsk = null;   // {ids:[players waiting to be ticked]}
+function selLimit(){ return (S.format||6)*2 + (S.oddSide ? 1 : 0); }
+function overflowBlocked(){ return isHost() && !S.benchOk && (S.phase==='setup' || !S.phase); }
+function overflowPlan(total){
+  const f = S.format||6, plans = [];
+  if(total % 2 === 1) plans.push({k:'uneven', label:'Uneven teams: ' + ((total+1)/2) + 'v' + ((total-1)/2), sub:'One team gets the extra player'});
+  const big = Math.ceil(total/2);
+  if(big > f) plans.push({k:'bigger', label:'Make it ' + big + 'v' + big, sub: big*2 + ' players' + (big*2 > total ? ' (' + (big*2-total) + ' more needed)' : '')});
+  plans.push({k:'bench', label:'Keep ' + f + 'v' + f + ', extras on the bench', sub:'They come on as subs'});
+  return plans;
+}
+function resolveOverflow(k){
+  if(!isHost()) return;
+  const ask = overflowAsk || {ids:[]};
+  const sel = (S.selectedIds||[]).slice(), t = new Date().toISOString();
+  const add = (ask.ids||[]).filter(id=>!sel.includes(id));
+  overflowAsk = null;
+  if(k==='cancel'){ render(); return; }
+  const next = sel.concat(add), total = next.length;
+  const patch = {selectedIds: next, rsvpLog: (S.rsvpLog||[]).concat(add.map(id=>({id, a:'in', t, by:'host'}))).slice(-300)};
+  if(k==='uneven'){ Object.assign(patch, {format:(total-1)/2, oddSide: Math.random()<0.5 ? 'a' : 'b', extraConfirmedEven:false, benchOk:false}); }
+  else if(k==='bigger'){ Object.assign(patch, {format:Math.ceil(total/2), oddSide:null, extraConfirmedEven:false, benchOk:false}); }
+  else if(k==='bench'){ patch.benchOk = true; }
+  saveState(patch);
+}
+function renderOverflowAsk(){
+  if(!overflowAsk) return '';
+  if(!isHost()){ overflowAsk = null; return ''; }
+  const sel = S.selectedIds||[], add = overflowAsk.ids.filter(id=>!sel.includes(id));
+  const total = sel.length + add.length, f = S.format||6, need = selLimit();
+  return `
+  <div class="modal-backdrop" onclick="if(event.target===this) resolveOverflow('cancel');">
+    <div class="modal" style="max-width:420px;" role="dialog" aria-labelledby="ovTitle">
+      <div class="panel-title" id="ovTitle" style="margin:0 0 4px;">That’s ${total} players</div>
+      <div class="panel-sub" style="margin:0 0 10px;">${f}v${f}${S.oddSide ? ' with one extra' : ''} needs ${need}, and ${sel.length} ${sel.length===1?'is':'are'} already ticked. ${add.length ? 'Adding <b>' + esc(add.map(playerName).join(', ')) + '</b> goes over. What’s the plan?' : 'What’s the plan?'}</div>
+      <div class="ov-plans">${overflowPlan(total).map(p=>`<button class="btn ov-plan" onclick="resolveOverflow('${p.k}')"><b>${esc(p.label)}</b><small>${esc(p.sub)}</small></button>`).join('')}</div>
+      <div class="footer-actions" style="justify-content:flex-start; margin-top:10px;">
+        <button class="btn btn-ghost" onclick="resolveOverflow('cancel')">${add.length ? 'Cancel, don’t add ' + (add.length===1 ? esc(playerName(add[0])) : 'these ' + add.length) : 'Decide later'}</button>
+      </div>
+    </div>
+  </div>`;
 }
 function confirmEvenTeams(){ saveState({extraConfirmedEven:true}); }
 function confirmExtraPlayer(){ saveState({oddSide: Math.random()<0.5 ? 'a' : 'b'}); }
@@ -2474,6 +2525,14 @@ function selectAllVisible(on){
   commitSelection(rows, on);
 }
 function commitSelection(ids, on){
+  if(on && overflowBlocked()){
+    const cur = S.selectedIds||[], adds = ids.filter(id=>!cur.includes(id)), room = Math.max(0, selLimit() - cur.length);
+    if(adds.length > room){
+      overflowAsk = {ids: adds.slice(room)};
+      ids = adds.slice(0, room);
+      if(!ids.length){ render(); return; }
+    }
+  }
   const sel = new Set(S.selectedIds||[]), t = new Date().toISOString(), log = [];
   ids.forEach(pid=>{
     const was = sel.has(pid);
@@ -2490,6 +2549,7 @@ const DRAG = {mode:null, pending:null, timer:null, x:0, y:0, raf:null, suppressC
 function dragRowAt(x, y, sel){ const el = document.elementFromPoint(x, y); return el ? el.closest(sel) : null; }
 function dsBegin(li){
   DRAG.mode = 'select'; DRAG.target = !li.classList.contains('selected'); DRAG.changed = new Set();
+  DRAG.selCount = (S.selectedIds||[]).length;
   document.body.classList.add('drag-selecting');
   try{ if(navigator.vibrate) navigator.vibrate(12); }catch(e){}
   dsApply(li); dragAutoScroll();
@@ -2497,6 +2557,8 @@ function dsBegin(li){
 function dsApply(li){
   if(!li || li.classList.contains('locked') || !li.dataset.pid) return;
   if(li.classList.contains('selected') !== DRAG.target){
+    if(DRAG.target && overflowBlocked() && DRAG.selCount >= selLimit()){ DRAG.changed.add(li.dataset.pid); li.classList.add('over-limit'); return; }
+    DRAG.selCount += DRAG.target ? 1 : -1;
     li.classList.toggle('selected', DRAG.target);
     const cb = li.querySelector('.check-box'); if(cb) cb.textContent = DRAG.target ? '✓' : '';
   }
@@ -2607,6 +2669,7 @@ function toggleSelected(id){
   if(!isHost() && id !== getMyPlayerId()) return; // players can only tick themselves in or out
   const sel = S.selectedIds||[];
   const isIn = sel.includes(id);
+  if(!isIn && overflowBlocked() && sel.length + 1 > selLimit()){ overflowAsk = {ids:[id]}; render(); return; }
   if(pollWaitActive() && findPlayer(id) && !isGuest(id)){
     const p = S.poll, v = pollVotesMap()[id];
     if(isIn) return castPollVote(id, [], true);
@@ -3763,7 +3826,7 @@ function render(){
   app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick()) && !friendBlockedHere()) ? renderProgress() : '') + renderBanner()
     + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (friendBlockedHere() ? `<div class="waiting-note" style="margin:30px 0;">Opening your game…</div>` : (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (liveCardHtml() + myPayCardHtml('home') + hostPaySummaryHtml() + renderPollCard() + renderBody()))))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
-    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderResultCardModal() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
+    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderOverflowAsk() + renderResultCardModal() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -4324,7 +4387,7 @@ function renderSetup(){
       return `<div class="host-detail">
         <b>${sel.length}</b> selected of ${need} needed · ${compositionLine(sel)}${noKeeperNote(sel, true)}<br>
         ⭐ stars in: ${starsSel} · average rank of those in: #${avgRank} · bench if everyone plays: ${Math.max(0, sel.length-need)}
-      </div>`;
+      </div>${sel.length > need && !S.benchOk ? `<div class="banner amber" id="overBanner" style="margin-top:8px;">⚠️ ${sel.length} ticked for ${S.format}v${S.format}${S.oddSide ? ' + 1' : ''} (${need} needed). <button class="btn btn-sm" onclick="overflowAsk={ids:[]}; render();">Sort it out</button></div>` : ''}${S.benchOk && sel.length > need ? `<div class="panel-sub" style="margin-top:6px;">${sel.length - need} on the bench (subs). <button class="btn btn-ghost btn-sm" onclick="saveState({benchOk:false})">Undo</button></div>` : ''}`;
     })() : ''}
     ${total || todaysGuests.length ? `
       ${isHost() ? '' : `<div class="panel-sub" style="margin-bottom:8px;">${sel.length} selected</div>`}

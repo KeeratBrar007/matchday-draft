@@ -64,7 +64,9 @@ const STUB = "window.__opened=[]; window.open=(u)=>{ window.__opened.push(u); re
  await H.evaluate(()=>setPollMax(5)); await wait(1600);
  ok(JSON.stringify(await H.evaluate(()=>S.selectedIds))==='["arjun","sahil","aditya","karan","rohan"]', 'host raises spots to 5: Rohan moves in');
  // host can still squeeze someone in past the limit
- await H.evaluate(()=>toggleSelected('om')); await wait(400);
+ await H.evaluate(()=>toggleSelected('om')); await wait(300);
+ ok(!!(await H.$('[aria-labelledby=ovTitle]')), 'going past what 2v2 needs asks the host first');
+ await H.click('button.ov-plan:has-text("extras on the bench")'); await wait(400);
  ok(await H.evaluate(()=>S.selectedIds.includes('om') && S.selectedIds.length===6), 'host can tick someone in past the limit');
  await H.evaluate(()=>toggleSelected('om')); await wait(400);
  // final list message

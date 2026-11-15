@@ -82,7 +82,7 @@ The host code is never stored in the app. The app only contains a SHA-256 finger
 
 Every push to `main` runs the full test suite on GitHub Actions before the site goes live (see [`.github/workflows/checks.yml`](.github/workflows/checks.yml)):
 
-- **18 end-to-end suites (about 510 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
+- **19 end-to-end suites (about 530 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
 - The tests run against a **mock Firestore** that enforces the same rules as the real database, so they also check that friends *can't* do things they shouldn't, like editing results, reading other games, or claiming to be the host.
 - Every suite runs twice, once under the current database rules and once under the game-privacy rules.
 - The site is published only if everything passes. A failed run leaves the last good version live, and the logs and screenshots are kept as build artifacts.

@@ -49,6 +49,9 @@ let fails=0; const ok=(c,m)=>{ console.log((c?'PASS ':'FAIL ')+m); if(!c) fails+
  ok((await H.evaluate(()=>S.rsvpLog.filter(e=>e.by==='host').length))>=8, 'drag ticks are logged for attendance');
  // select all / clear
  await H.click('button:has-text("Select all")'); await wait(400);
+ const ovq = await H.$('[aria-labelledby=ovTitle]');
+ ok(!!ovq && (await sel()).length < 16, 'Select all past the format asks first (uneven / bigger / bench)');
+ await H.click('button.ov-plan:has-text("extras on the bench")'); await wait(400);
  ok((await sel()).length===16, 'Select all ticks everyone');
  await H.click('.sel-tools button:has-text("Clear")'); await wait(400);
  ok((await sel()).length===0, 'Clear unticks everyone');
