@@ -1,5 +1,5 @@
-# Matchday Draft: run every test before publishing the site.
-# Upload new files to main -> GitHub tests them on pretend phones ->
+# Matchday Draft: build the app from src/, run every test, then publish.
+# Upload new files to main -> GitHub builds index.html from src/ and tests it on pretend phones ->
 # only if everything passes does the site update. If anything fails,
 # friends keep the last good version and you get an email.
 name: Check and publish
@@ -66,8 +66,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Pick the files friends need
         run: |
+          node build.js
           mkdir _site
-          cp index.html _site/
+          cp dist/index.html _site/index.html
           for f in sw.js manifest.webmanifest *.png *.svg; do [ -f "$f" ] && cp "$f" _site/; done
           ls -la _site
           if grep -q "PASTE_YOUR_HOST_CODE_HERE\|hostClaims/{uid}" _site/index.html; then echo "Rules text found in index.html - stopping"; exit 1; fi
