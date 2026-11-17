@@ -18,6 +18,21 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
+// Demo mode (?demo=1): the app's own saved settings (keys starting md_) go under
+// mddemo_ instead, so the demo can never overwrite a real login or game on this
+// phone; "who am I" settings are kept per tab, so two tabs can be different people.
+(function(){ try{
+  var q = new URLSearchParams(location.search), d = q.get('demo');
+  if(d === '0'){ sessionStorage.removeItem('matchday_demo'); return; }
+  if(d === null && sessionStorage.getItem('matchday_demo') !== '1') return;
+  sessionStorage.setItem('matchday_demo', '1'); window.MD_DEMO = true;
+  var P = Storage.prototype, g = P.getItem, s = P.setItem, r = P.removeItem, L = window.localStorage, SS = window.sessionStorage;
+  var tab = {md_login_name:1, md_login_pin:1, md_is_host:1, md_squad:1, md_host_uid:1};
+  var where = function(st, k){ k = String(k); if(k.indexOf('md_') !== 0) return [st, k]; return [(st === L && tab[k]) ? SS : st, 'mddemo_' + k.slice(3)]; };
+  P.getItem = function(k){ var w = where(this, k); return g.call(w[0], w[1]); };
+  P.setItem = function(k, v){ var w = where(this, k); return s.call(w[0], w[1], v); };
+  P.removeItem = function(k){ var w = where(this, k); return r.call(w[0], w[1]); };
+}catch(e){} })();
 try{ document.documentElement.setAttribute('data-sport', localStorage.getItem('md_sport') || 'football'); }catch(e){}
 try{ document.documentElement.setAttribute('data-theme', localStorage.getItem('md_theme')==='dark' ? 'dark' : 'light'); }
 catch(e){ document.documentElement.setAttribute('data-theme','light'); }

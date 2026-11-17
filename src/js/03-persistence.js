@@ -527,7 +527,7 @@ function fsWrapDoc(r){
 }
 function initFirebaseDb(){
   try{
-    if(!FIREBASE_CONFIG || !window.firebase) return null;
+    if(!FIREBASE_CONFIG || !window.firebase || window.MD_DEMO) return null;
     firebase.initializeApp(FIREBASE_CONFIG);
     const fs = firebase.firestore();
     // The default streaming connection can silently stall on phones (mobile
@@ -549,14 +549,15 @@ function initFirebaseDb(){
 
 async function initDb(){
   try{
-    if(window.claude && window.claude.use){
+    if(window.claude && window.claude.use && !window.MD_DEMO){
       db = await window.claude.use('db');
     }
   }catch(e){ db = null; }
   if(!db) db = initFirebaseDb();
 
   if(!db){
-    LOCAL = loadLocalStore() || defaultLocalStore();
+    LOCAL = loadLocalStore() || (window.MD_DEMO ? demoLocalStore() : defaultLocalStore());
+    if(window.MD_DEMO) saveLocalStore();   // so a second demo tab starts from the same data
     currentSquadId = LOCAL.currentSquadId;
     squadsList = LOCAL.squads;
     const rec = LOCAL.data[currentSquadId] || { squad: defaultSquad(), state: defaultState(), history: [] };

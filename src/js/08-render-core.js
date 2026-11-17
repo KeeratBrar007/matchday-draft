@@ -136,6 +136,9 @@ function renderLogin(){
       ${loginError ? `<div class="login-err">${esc(loginError)}</div>` : ''}
       ${hostBox}
     </div>
+    <div class="login-demo">${window.MD_DEMO
+      ? `<button class="btn" onclick="demoViewAs('')">🧪 Back to the demo (host view)</button>`
+      : `<span>Not in a group yet?</span><button class="btn" onclick="demoOpen()">👀 Try the demo</button><small>Made-up players and matches. No sign-up.</small>`}</div>
     <div class="login-foot">${themeBtnHtml()}</div>
     <div class="login-foot" style="margin-top:8px;">${installBtnHtml()}</div>
     ${updateToastHtml()}
@@ -169,10 +172,10 @@ function render(){
   if(shouldOfferPin() && pinOfferedFor !== pinKey(getLoginName())){ pinOfferedFor = pinKey(getLoginName()); pinModalOpen = true; }
 
   const pg = currentPage();
-  app.innerHTML = renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick()) && !friendBlockedHere()) ? renderProgress() : '') + renderBanner()
+  app.innerHTML = demoBannerHtml() + renderTopbar() + renderPageNav() + renderTurnBanner() + ((pg==='home' && !(gamePickerOpen || needsGamePick()) && !friendBlockedHere()) ? renderProgress() : '') + renderBanner()
     + hostLockBannerHtml() + ((gamePickerOpen || needsGamePick()) ? renderGamePicker() : (friendBlockedHere() ? `<div class="waiting-note" style="margin:30px 0;">Opening your game…</div>` : (pg==='profile' ? renderProfilePage() : pg==='leaderboard' ? renderLeaderboardPage() : (liveCardHtml() + myPayCardHtml('home') + hostPaySummaryHtml() + renderPollCard() + renderBody()))))
     + renderHistoryModal() + renderDatabaseModal() + renderLogMatchModal() + renderSquadManagerModal()
-    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderOverflowAsk() + renderStatsModal() + renderResultCardModal() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
+    + renderAttendanceModal() + renderProfilePicker() + renderBackupModal() + renderPollForm() + renderPaymentsModal() + renderFeeEditor() + renderLiveAsk() + renderOverflowAsk() + renderStatsModal() + demoWaModal() + renderResultCardModal() + renderPinModal() + updateToastHtml() + deniedToastHtml() + infoToastHtml();
   if(keepId){
     const el = document.getElementById(keepId);
     if(el){ el.focus(); try{ el.setSelectionRange(keepPos, keepPos); }catch(e){} }
@@ -272,6 +275,7 @@ function renderProgress(){
 
 function renderBanner(){
   if(!db){
+    if(window.MD_DEMO) return '';
     return `<div class="banner amber">Playing solo on this device — live sync to other phones isn't switched on here, but everything below still works on this phone.</div>`;
   }
   let out = '';
@@ -282,7 +286,7 @@ function renderBanner(){
   return out;
 }
 
-function isHost(){ return isHostDevice || (dbReady && !db); }
+function isHost(){ return isHostDevice || (dbReady && !db && !window.MD_DEMO); }
 
 function renderBody(){
   switch(S.phase){

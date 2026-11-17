@@ -71,7 +71,7 @@ function applyPendingVote(){
   render();
 }
 // api.whatsapp.com keeps emoji intact (the short wa.me address can turn them into "�")
-function openWhatsApp(text){ window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
+function openWhatsApp(text){ if(window.MD_DEMO){ demoWaText = text; render(); return; } window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(text), '_blank', 'noopener'); }
 function isoDay(dt){ return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0'); }
 function slotLabel(dt, part){ return dt.toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short'}) + ' · ' + part; }
 // The same weekday as last time, on or after today, and always later than last time's date.

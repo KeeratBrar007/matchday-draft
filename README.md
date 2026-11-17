@@ -2,6 +2,8 @@
 
 ![Checks](https://github.com/KeeratBrar007/matchday-draft/actions/workflows/checks.yml/badge.svg)
 
+**▶ Try the demo:** https://keeratbrar007.github.io/matchday-draft/?demo=1 (made-up players and matches, no sign-up; open it in two tabs to see live sync)
+
 **Live app:** https://keeratbrar007.github.io/matchday-draft/
 
 Matchday Draft is a web app for running a weekly pickup game with friends. It covers who's playing, building fair teams, scoring, and splitting the turf money, so the group doesn't need WhatsApp polls, spreadsheets and mental maths.
@@ -60,6 +62,11 @@ It's a single HTML file that installs on a phone like an app. Everyone's phone s
 - One host, unlocked with a private host link; everyone else logs in with just their name (optional PIN).
 - Backup and restore of all data.
 
+**Demo mode** (`?demo=1`)
+- Opens the whole app with generated sample data (two games, 26 players, 15 past matches) and never connects to the database, so real groups' data can't be seen or changed.
+- Visitors start as the host and can switch to any player's view; saved settings are namespaced so the demo can't overwrite a real login on the same phone.
+- Two demo tabs stay in sync through browser storage events, to show the live updates a real group gets.
+
 ---
 
 ## How it's built
@@ -82,7 +89,7 @@ The host code is never stored in the app. The app only contains a SHA-256 finger
 
 Every push to `main` builds the app and runs the full test suite on GitHub Actions before the site goes live (see [`.github/workflows/checks.yml`](.github/workflows/checks.yml)):
 
-- **20 end-to-end suites (about 550 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
+- **21 end-to-end suites (about 580 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
 - The tests run against a **mock Firestore** that enforces the same rules as the real database, so they also check that friends *can't* do things they shouldn't, like editing results, reading other games, or claiming to be the host.
 - Every suite runs twice, once under the current database rules and once under the game-privacy rules.
 - The site is published only if everything passes. A failed run leaves the last good version live, and the logs and screenshots are kept as build artifacts.
@@ -111,7 +118,7 @@ src/js/                 the app, one file per area, joined in file-name order:
                           07-results (rankings that learn)  08-11 rendering
                           13-turf-money  14-live-score  15-result-card  16-polls
                           17-numbers  18-backup  19-profile  20-alerts  21-22 stats
-                          23-attendance  24-boot  (12 is the bundled QR encoder)
+                          23-attendance  23-demo  24-boot  (12 is the bundled QR encoder)
 build.js                joins src/ into dist/index.html (no dependencies)
 sw.js                   service worker (offline + updates)
 manifest.webmanifest    install info and icons

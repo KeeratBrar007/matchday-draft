@@ -4,7 +4,11 @@
    player list and full match history once when opened. */
 let showStats = false, statsData = null, statsErr = '', statsCopied = '';
 async function loadAllGamesData(){
-  if(!db) return [{id: currentSquadId, name: currentSquadName(), sport: SPORT.key, roster: SQUAD, history: HISTORY}];
+  if(!db){
+    if(!LOCAL || !LOCAL.squads) return [{id: currentSquadId, name: currentSquadName(), sport: SPORT.key, roster: SQUAD, history: HISTORY}];
+    return LOCAL.squads.map(g=>{ const rec = g.id===currentSquadId ? {squad: SQUAD, history: HISTORY} : (LOCAL.data[g.id] || {});
+      return {id: g.id, name: g.name, sport: SPORTS[g.sport] ? g.sport : 'football', roster: rec.squad || {}, history: rec.history || []}; });
+  }
   const games = (squadsList||[]).length ? squadsList : [{id: currentSquadId, name: currentSquadName()}];
   return Promise.all(games.map(async g=>{
     const [r, hs] = await Promise.all([
