@@ -106,7 +106,7 @@ const STUB = "window.__opened=[]; window.open=(u)=>{ window.__opened.push(u); re
  await AD.evaluate(()=>goMyProfile()); await wait(300);
  const btn = await AD.$('button:has-text("📸 Result card")');
  ok(!!btn, 'friends get a 📸 Result card button on their past matches');
- await btn.click(); await wait(2500);
+ await btn.click(); await AD.waitForSelector('#resultCardImg', {timeout:10000}).catch(()=>{}); await wait(300);
  const info = await AD.evaluate(()=>new Promise(r=>{ const im=document.getElementById('resultCardImg'); if(!im) return r(null); const go=()=>r({w:im.naturalWidth, h:im.naturalHeight, png:im.src.startsWith('data:image/png')}); im.complete?go():im.onload=go; }));
  ok(info && info.w===1080 && info.h===1350 && info.png, 'result card is a 1080×1350 PNG (fits WhatsApp nicely): '+JSON.stringify(info));
  const b64 = await AD.evaluate(()=>document.getElementById('resultCardImg').src.split(',')[1]);

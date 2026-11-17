@@ -92,8 +92,12 @@ const FB_SPY = "window.__fb=0; window.__opened=[]; window.open=(u)=>{ window.__o
  await B.screenshot({path:'demo_player_live.png'});
  await A.click('button:has-text("Full time")'); await wait(150); await A.click('button:has-text("Tap again to save")'); await wait(600);
  ok(/FULL TIME/.test(await txt(A)) && await A.evaluate(()=>HISTORY.length)===11, 'full time saves the result into the demo history');
- await A.click('#liveCard button:has-text("Result card")'); await wait(2000);
- ok(!!(await A.$('#resultCardImg')), 'the result card is drawn');
+ await A.bringToFront();   // the host is looking at tab 1 now
+ await A.click('#liveCard button:has-text("Result card")');
+ // drawing the picture the first time can take a few seconds on a slow machine (fonts, emoji)
+ const drawn = !!(await A.waitForSelector('#resultCardImg', {timeout:10000}).catch(()=>null));
+ if(!drawn) console.log('result card debug', JSON.stringify(await A.evaluate(()=>({open:resultCardOpen, msg:resultCardMsg, url:!!resultCardUrl, live:S.live && S.live.status, winner:(HISTORY.find(h=>h.id===(S.live||{}).hid)||{}).winner, vis:document.visibilityState}))));
+ ok(drawn, 'the result card is drawn');
  await A.evaluate(()=>{ resultCardOpen=null; render(); }); await wait(200);
  // ---- reset ----
  await A.click('.demo-bar button:has-text("Reset")'); await A.click('.demo-bar button:has-text("Tap again to reset")'); await wait(600);
