@@ -1,9 +1,15 @@
 # Builds a test copy of the app (tests/site/) from the real files at the top of the repo.
 # The test copy talks to a pretend database (no internet, no real Firebase).
-import os, re, shutil, glob, hashlib
+import os, re, shutil, glob, hashlib, subprocess
 here = os.path.dirname(os.path.abspath(__file__)); root = os.path.dirname(here)
 site = os.path.join(here, 'site'); shutil.rmtree(site, ignore_errors=True); os.makedirs(site)
-src = open(os.path.join(root, 'index.html'), encoding='utf-8').read()
+# the app is built from src/ (node build.js -> dist/index.html); older layouts kept index.html at the top
+if os.path.exists(os.path.join(root, 'src', 'index.html')):
+    subprocess.run(['node', os.path.join(root, 'build.js')], check=True)
+    built = os.path.join(root, 'dist', 'index.html')
+else:
+    built = os.path.join(root, 'index.html')
+src = open(built, encoding='utf-8').read()
 src, n = re.subn(r'const FIREBASE_CONFIG = (null|\{[\s\S]*?\});', 'const FIREBASE_CONFIG = {projectId:"mock"};', src, count=1)
 assert n == 1, 'could not find FIREBASE_CONFIG in index.html'
 src, n = re.subn(r'<meta name="md-build" content="[^"]*">', '<meta name="md-build" content="testbuild1">', src, count=1)

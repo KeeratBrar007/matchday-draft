@@ -66,7 +66,7 @@ It's a single HTML file that installs on a phone like an app. Everyone's phone s
 
 | Part | What's used |
 |---|---|
-| App | One self-contained `index.html` (plain HTML, CSS and JavaScript, no framework or build step) |
+| App | Plain HTML, CSS and JavaScript (no framework), written as small modules in `src/` and built into one self-contained `index.html` by a zero-dependency Node script |
 | Install / offline | Web app manifest + service worker (installable PWA with update prompts) |
 | Database | Firebase Cloud Firestore with real-time listeners |
 | Sign-in | Firebase anonymous auth; the host proves a private code once per phone |
@@ -80,20 +80,21 @@ The host code is never stored in the app. The app only contains a SHA-256 finger
 
 ## Automatic tests
 
-Every push to `main` runs the full test suite on GitHub Actions before the site goes live (see [`.github/workflows/checks.yml`](.github/workflows/checks.yml)):
+Every push to `main` builds the app and runs the full test suite on GitHub Actions before the site goes live (see [`.github/workflows/checks.yml`](.github/workflows/checks.yml)):
 
-- **19 end-to-end suites (about 530 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
+- **20 end-to-end suites (about 550 checks)** written with [Playwright](https://playwright.dev). They drive the app on emulated iPhones, with several phones (host and friends) open at once.
 - The tests run against a **mock Firestore** that enforces the same rules as the real database, so they also check that friends *can't* do things they shouldn't, like editing results, reading other games, or claiming to be the host.
 - Every suite runs twice, once under the current database rules and once under the game-privacy rules.
 - The site is published only if everything passes. A failed run leaves the last good version live, and the logs and screenshots are kept as build artifacts.
 
-Run them locally:
+Build and run them locally:
 
 ```bash
+node build.js                        # src/ -> dist/index.html
 cd tests
 npm install && npx playwright install chromium
 pip install opencv-python-headless   # used to scan the generated UPI QR codes
-python3 prepare.py                   # builds a test copy of the app that uses the mock database
+python3 prepare.py                   # builds the app, then a test copy that uses the mock database
 bash run.sh current                  # or: bash run.sh privacy
 ```
 
@@ -102,7 +103,16 @@ bash run.sh current                  # or: bash run.sh privacy
 ## Repository layout
 
 ```
-index.html              the whole app
+src/index.html          page shell (head, meta tags, where the CSS and JS go)
+src/css/                styles: theme, layout, players and teams, auction, features
+src/js/                 the app, one file per area, joined in file-name order:
+                          01-state  02-sports  03-persistence (Firestore + auth, config)
+                          04-matchmaking (team balancing)  05/06 database + match flow
+                          07-results (rankings that learn)  08-11 rendering
+                          13-turf-money  14-live-score  15-result-card  16-polls
+                          17-numbers  18-backup  19-profile  20-alerts  21-22 stats
+                          23-attendance  24-boot  (12 is the bundled QR encoder)
+build.js                joins src/ into dist/index.html (no dependencies)
 sw.js                   service worker (offline + updates)
 manifest.webmanifest    install info and icons
 *.png                   app icons
@@ -116,9 +126,9 @@ tests/                  Playwright suites, mock database, test runner
 ## Using it for your own group
 
 1. Create a free Firebase project with Firestore and anonymous sign-in turned on.
-2. Put your project's web config into `FIREBASE_CONFIG` in `index.html`.
-3. Pick a host code. Put its SHA-256 into `HOST_HASH` in `index.html`, and the code itself into your Firestore security rules (never into the repository).
-4. Host the files on GitHub Pages (or any static host) and open `your-site/#host=YOUR_CODE` once on the host's phone.
+2. Put your project's web config into `FIREBASE_CONFIG` in `src/js/03-persistence.js`.
+3. Pick a host code. Put its SHA-256 into `HOST_HASH` in `src/js/01-state.js`, and the code itself into your Firestore security rules (never into the repository).
+4. Run `node build.js` and host `dist/index.html` with the icons, `sw.js` and the manifest on GitHub Pages (or any static host), and open `your-site/#host=YOUR_CODE` once on the host's phone.
 
 ---
 

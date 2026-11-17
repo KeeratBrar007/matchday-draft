@@ -3,7 +3,7 @@
 # A suite that fails is run once more (phones on a busy server can be slow); it only counts as failed if it fails twice.
 cd "$(dirname "$0")"
 MODE=${1:-current}
-SUITES="e2e2 e2e3 e2e4 e2e5 e2e6 e2e7 e2e8 e2e9 e2e10 e2e11 e2e12 e2e13 e2e14 e2e15 e2e16 e2e18 e2e19 e2e20"
+SUITES="e2e2 e2e3 e2e4 e2e5 e2e6 e2e7 e2e8 e2e9 e2e10 e2e11 e2e12 e2e13 e2e14 e2e15 e2e16 e2e18 e2e19 e2e20 e2e21"
 if [ "$MODE" = privacy ]; then V2=1 python3 make_mock.py; SUITES="$SUITES e2e17"; else python3 make_mock.py; fi
 mkdir -p logs; rm -f logs/*
 # a suite passes only if it exits cleanly AND printed no FAIL line (older suites don't set an exit code)
